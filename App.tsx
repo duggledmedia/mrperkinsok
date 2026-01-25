@@ -574,7 +574,8 @@ const CartDrawer: React.FC = () => {
               unit_price: Math.ceil(item.precio_usd * dolarBlue)
             }));
 
-            const response = await fetch('http://localhost:3000/create_preference', {
+            // Use relative path for Vercel API
+            const response = await fetch('/api/create_preference', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -595,7 +596,7 @@ const CartDrawer: React.FC = () => {
             }
           } catch (error) {
             console.error(error);
-            alert("Error del servidor. Asegúrese de que el backend esté corriendo.");
+            alert("Error del servidor.");
             setProcessing(false);
           }
           return;
@@ -606,7 +607,8 @@ const CartDrawer: React.FC = () => {
       
       // Schedule Delivery in Calendar (Sync)
       try {
-         await fetch('http://localhost:3000/schedule_delivery', {
+         // Use relative path for Vercel API
+         await fetch('/api/schedule_delivery', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
