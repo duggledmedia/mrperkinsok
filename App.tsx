@@ -6,6 +6,13 @@ import { Product, CartItem, Order, ChatMessage, ChatRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
 
 // --- CONTEXT ---
+interface AlertData {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
 interface AppContextType {
   cart: CartItem[];
   addToCart: (product: Product) => void;
@@ -19,7 +26,7 @@ interface AppContextType {
   loginAdmin: (pass: string) => boolean;
   dolarBlue: number;
   formatPrice: (usd: number) => string;
-  // Filter State moved to Context
+  // Filter State
   filterBrand: string;
   setFilterBrand: (v: string) => void;
   filterGender: string;
@@ -28,23 +35,59 @@ interface AppContextType {
   setSortPrice: (v: 'none' | 'asc' | 'desc') => void;
   availableBrands: string[];
   availableGenders: string[];
+  // Custom Alert System
+  showAlert: (title: string, message: string, type?: 'success' | 'error' | 'info') => void;
+  closeAlert: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// --- PERKINS CUSTOM MODAL COMPONENT ---
+const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data, onClose }) => {
+  if (!data.isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-fade-in">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-luxury-card w-full max-w-sm rounded-2xl border border-gold-600/50 shadow-[0_0_30px_rgba(212,175,55,0.2)] overflow-hidden flex flex-col items-center text-center p-6 animate-slide-up">
+        
+        {/* Header Icon */}
+        <div className="w-20 h-20 rounded-full border-2 border-gold-500 overflow-hidden shadow-lg mb-4 bg-black">
+             <img src={PERKINS_IMAGES.EXCELENTE} className="w-full h-full object-cover" alt="Perkins" />
+        </div>
+
+        <h3 className="text-xl font-serif text-gold-500 mb-2 font-bold">{data.title}</h3>
+        
+        <div className="text-gray-300 text-sm mb-6 whitespace-pre-line leading-relaxed">
+          {data.message}
+        </div>
+
+        <button 
+          onClick={onClose}
+          className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg uppercase tracking-widest transition-colors"
+        >
+          Entendido
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [dolarBlue, setDolarBlue] = useState(1200); // Fallback value
+  const [dolarBlue, setDolarBlue] = useState(1200);
+  
+  // Custom Alert State
+  const [alertData, setAlertData] = useState<AlertData>({ isOpen: false, title: '', message: '', type: 'info' });
 
   // Global Filter State
   const [filterBrand, setFilterBrand] = useState<string>('Fabricante');
   const [filterGender, setFilterGender] = useState<string>('Para Todos');
   const [sortPrice, setSortPrice] = useState<'none' | 'asc' | 'desc'>('none');
 
-  // Derived lists
   const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(PRODUCTS.map(p => p.marca)))], []);
   const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(PRODUCTS.map(p => p.genero)))], []);
 
@@ -73,7 +116,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
         if (existing.quantity >= 4) {
-          alert("Máximo 4 unidades por producto permitidas.");
+          showAlert("Perkins dice:", "Lo siento, permitimos un máximo de 4 unidades por fragancia para mantener la exclusividad.", 'error');
           return prev;
         }
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
@@ -101,12 +144,22 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return false;
   };
 
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setAlertData({ isOpen: true, title, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlertData(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <AppContext.Provider value={{ 
       cart, addToCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, isAdmin, loginAdmin, dolarBlue, formatPrice,
-      filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders
+      filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders,
+      showAlert, closeAlert
     }}>
       {children}
+      <PerkinsModal data={alertData} onClose={closeAlert} />
     </AppContext.Provider>
   );
 };
@@ -499,7 +552,7 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void }> =
 };
 
 const CartDrawer: React.FC = () => {
-  const { isCartOpen, setIsCartOpen, cart, removeFromCart, clearCart, addOrder, formatPrice, dolarBlue } = useStore();
+  const { isCartOpen, setIsCartOpen, cart, removeFromCart, clearCart, addOrder, formatPrice, dolarBlue, showAlert } = useStore();
   const [step, setStep] = useState<'cart' | 'shipping' | 'payment'>('cart');
   const [processing, setProcessing] = useState(false);
   
@@ -544,7 +597,7 @@ const CartDrawer: React.FC = () => {
     if (step === 'cart') setStep('shipping');
     else if (step === 'shipping') {
       if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.province || !shippingData.locality || !shippingData.date) {
-        alert("Por favor complete todos los campos obligatorios.");
+        showAlert("Perkins dice:", "Por favor complete todos los campos obligatorios para asegurar un servicio de excelencia.", "error");
         return;
       }
       setStep('payment');
@@ -590,12 +643,12 @@ const CartDrawer: React.FC = () => {
             if (data.init_point) {
                window.location.href = data.init_point; // Redirect to MercadoPago
             } else {
-               alert("Error al conectar con MercadoPago.");
+               showAlert("Perkins dice:", "Ha ocurrido un error al conectar con MercadoPago. Por favor intente nuevamente.", "error");
                setProcessing(false);
             }
           } catch (error) {
             console.error(error);
-            alert("Error del servidor (MercadoPago). Intente nuevamente.");
+            showAlert("Perkins dice:", "Error del servidor. Nuestras más sinceras disculpas.", "error");
             setProcessing(false);
           }
           return;
@@ -628,7 +681,13 @@ const CartDrawer: React.FC = () => {
       } finally {
         setProcessing(false);
         const methodMsg = 'Efectivo';
-        alert(`¡Pedido Confirmado!\nPago: ${methodMsg}\nEnvío agendado para: ${shippingData.date}\nSe ha notificado a Mr. Perkins.`);
+        
+        // Show Luxury Modal instead of native alert
+        showAlert(
+          "Perkins dice:", 
+          `¡Espléndido! Su pedido ha sido confirmado.\n\nMétodo de Pago: ${methodMsg}\nEnvío agendado para: ${shippingData.date}\n\nHe notificado personalmente al equipo de logística.`, 
+          "success"
+        );
         
         clearCart();
         setIsCartOpen(false);
