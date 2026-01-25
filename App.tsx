@@ -550,6 +550,7 @@ const CartDrawer: React.FC = () => {
       setStep('payment');
     }
     else if (step === 'payment') {
+      setProcessing(true);
       const newOrder: Order = {
         id: `ORD-${Date.now()}`,
         items: [...cart],
@@ -563,23 +564,19 @@ const CartDrawer: React.FC = () => {
       
       addOrder(newOrder);
 
+      // Prepare data for backend
+      const backendItems = cart.map(item => ({
+        title: item.nombre,
+        quantity: item.quantity,
+        unit_price: Math.ceil(item.precio_usd * dolarBlue)
+      }));
+
       // Handle MercadoPago Payment
       if (shippingData.paymentMethod === 'mp') {
-          setProcessing(true);
           try {
-            // Prepare data for backend
-            const backendItems = cart.map(item => ({
-              title: item.nombre,
-              quantity: item.quantity,
-              unit_price: Math.ceil(item.precio_usd * dolarBlue)
-            }));
-
-            // Use relative path for Vercel API
             const response = await fetch('/api/create_preference', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 items: backendItems,
                 shippingCost: shippingCostARS,
@@ -587,7 +584,9 @@ const CartDrawer: React.FC = () => {
               }),
             });
 
+            if (!response.ok) throw new Error('Error en API MP');
             const data = await response.json();
+            
             if (data.init_point) {
                window.location.href = data.init_point; // Redirect to MercadoPago
             } else {
@@ -596,19 +595,16 @@ const CartDrawer: React.FC = () => {
             }
           } catch (error) {
             console.error(error);
-            alert("Error del servidor.");
+            alert("Error del servidor (MercadoPago). Intente nuevamente.");
             setProcessing(false);
           }
           return;
       }
       
       // Handle Cash Payment
-      setProcessing(true);
-      
       // Schedule Delivery in Calendar (Sync)
       try {
-         // Use relative path for Vercel API
-         await fetch('/api/schedule_delivery', {
+         const response = await fetch('/api/schedule_delivery', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -620,20 +616,25 @@ const CartDrawer: React.FC = () => {
               total: formatPrice(totalUSD + shippingCostUSD)
             })
          });
-         console.log("Evento agendado en Calendar.");
+         
+         if (!response.ok) {
+           console.warn("No se pudo agendar en el calendario. Status:", response.status);
+         } else {
+           console.log("Evento agendado en Calendar.");
+         }
       } catch (e) {
          console.error("Error agendando en calendar", e);
          // Continue flow even if calendar fails
+      } finally {
+        setProcessing(false);
+        const methodMsg = 'Efectivo';
+        alert(`¡Pedido Confirmado!\nPago: ${methodMsg}\nEnvío agendado para: ${shippingData.date}\nSe ha notificado a Mr. Perkins.`);
+        
+        clearCart();
+        setIsCartOpen(false);
+        setStep('cart');
+        setShippingData({ name: '', phone: '', email: '', province: '', locality: '', address: '', date: '', region: 'caba', paymentMethod: 'mp' });
       }
-
-      setProcessing(false);
-      const methodMsg = 'Efectivo';
-      alert(`¡Pedido Confirmado!\nPago: ${methodMsg}\nEnvío agendado para: ${shippingData.date}\nSe ha notificado a Mr. Perkins.`);
-      
-      clearCart();
-      setIsCartOpen(false);
-      setStep('cart');
-      setShippingData({ name: '', phone: '', email: '', province: '', locality: '', address: '', date: '', region: 'caba', paymentMethod: 'mp' });
     }
   };
 

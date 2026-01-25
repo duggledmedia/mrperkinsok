@@ -27,7 +27,6 @@ if (!accessToken || accessToken.includes('000000')) {
 // --- CONFIGURACIÓN GOOGLE CALENDAR ---
 const calendarId = process.env.GOOGLE_CALENDAR_ID;
 const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-// Manejo seguro de saltos de línea en la clave privada
 const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 let calendarClient = null;
@@ -47,13 +46,13 @@ if (clientEmail && privateKey && calendarId) {
     console.error("❌ Error configurando Google Calendar:", error.message);
   }
 } else {
-  console.warn("⚠️  ALERTA CALENDAR: Faltan credenciales en .env (GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_CALENDAR_ID)");
+  console.warn("⚠️  ALERTA CALENDAR: Faltan credenciales en .env");
 }
 
-// --- RUTAS ---
+// --- RUTAS (Prefijo /api para consistencia con Vercel) ---
 
 // 1. Crear Preferencia de Pago (MercadoPago)
-app.post('/create_preference', async (req, res) => {
+app.post('/api/create_preference', async (req, res) => {
   try {
     const { items, shippingCost, external_reference } = req.body;
     console.log(`🛒 Procesando pago para orden: ${external_reference}`);
@@ -101,29 +100,28 @@ app.post('/create_preference', async (req, res) => {
 });
 
 // 2. Agendar Entrega (Google Calendar)
-app.post('/schedule_delivery', async (req, res) => {
+app.post('/api/schedule_delivery', async (req, res) => {
   const { orderId, customerName, address, deliveryDate, items, total } = req.body;
 
   if (!calendarClient) {
+    console.error("Intento de agendar sin configuración de calendario.");
     return res.status(503).json({ error: "Servicio de calendario no configurado" });
   }
 
   try {
     console.log(`📅 Agendando entrega para ${customerName} el ${deliveryDate}`);
 
-    // Parsear fecha (asumiendo YYYY-MM-DD) y establecer hora (ej: 9 AM a 6 PM)
-    // Nota: deliveryDate viene del input type="date" (YYYY-MM-DD)
-    const startDate = `${deliveryDate}T09:00:00-03:00`; // Hora Argentina
+    const startDate = `${deliveryDate}T09:00:00-03:00`;
     const endDate = `${deliveryDate}T18:00:00-03:00`;
 
     const description = `
-      🆔 Pedido: ${orderId}
-      👤 Cliente: ${customerName}
-      📍 Dirección: ${address}
-      💰 Total: ${total}
-      
-      📦 Productos:
-      ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
+🆔 Pedido: ${orderId}
+👤 Cliente: ${customerName}
+📍 Dirección: ${address}
+💰 Total: ${total}
+
+📦 Productos:
+${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
     `;
 
     const event = {
@@ -132,7 +130,7 @@ app.post('/schedule_delivery', async (req, res) => {
       description: description,
       start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
       end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
-      colorId: '5', // 5 es Amarillo (Gold) en Google Calendar
+      colorId: '5',
     };
 
     const response = await calendarClient.events.insert({
@@ -150,5 +148,8 @@ app.post('/schedule_delivery', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}\n`);
+  console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
+  console.log(`   Rutas disponibles:`);
+  console.log(`   - POST /api/create_preference`);
+  console.log(`   - POST /api/schedule_delivery\n`);
 });
