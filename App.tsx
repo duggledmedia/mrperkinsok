@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2 } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -41,12 +41,12 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // Global Filter State
   const [filterBrand, setFilterBrand] = useState<string>('Fabricante');
-  const [filterGender, setFilterGender] = useState<string>('Todos');
+  const [filterGender, setFilterGender] = useState<string>('Para Todos');
   const [sortPrice, setSortPrice] = useState<'none' | 'asc' | 'desc'>('none');
 
   // Derived lists
   const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(PRODUCTS.map(p => p.marca)))], []);
-  const availableGenders = useMemo(() => ['Todos', ...Array.from(new Set(PRODUCTS.map(p => p.genero)))], []);
+  const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(PRODUCTS.map(p => p.genero)))], []);
 
   useEffect(() => {
     const fetchDolar = async () => {
@@ -72,6 +72,10 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        if (existing.quantity >= 4) {
+          alert("Máximo 4 unidades por producto permitidas.");
+          return prev;
+        }
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
       return [...prev, { ...product, quantity: 1 }];
@@ -376,6 +380,7 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
              <div className="flex items-center gap-2">
                 <span className="text-gold-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">{product.marca}</span>
                 <span className="text-gray-500 text-[10px] sm:text-xs">• {product.presentacion_ml} ML</span>
+                <span className="text-gray-400 text-[10px] sm:text-xs border border-gray-700 rounded px-1">{product.genero}</span>
              </div>
            </div>
            <div className="text-right sm:hidden">
@@ -496,16 +501,50 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void }> =
 const CartDrawer: React.FC = () => {
   const { isCartOpen, setIsCartOpen, cart, removeFromCart, clearCart, addOrder, formatPrice, dolarBlue } = useStore();
   const [step, setStep] = useState<'cart' | 'shipping' | 'payment'>('cart');
-  const [shippingData, setShippingData] = useState({ name: '', address: '', date: '', time: '' });
+  const [processing, setProcessing] = useState(false);
+  
+  // Shipping & User Form Data
+  const [shippingData, setShippingData] = useState({ 
+    name: '', 
+    phone: '', 
+    email: '',
+    province: '',
+    locality: '',
+    address: '',
+    date: '', 
+    region: 'caba' as 'caba' | 'interior', // caba | interior
+    paymentMethod: 'mp' as 'mp' | 'efectivo'
+  });
 
   const totalUSD = cart.reduce((acc, item) => acc + (item.precio_usd * item.quantity), 0);
-  const shippingCostUSD = 5;
+  
+  // Calculate Shipping Cost logic
+  const isWednesday = (dateString: string) => {
+    if (!dateString) return false;
+    const parts = dateString.split('-');
+    const dateObj = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+    return dateObj.getDay() === 3; // 0 Sun, 1 Mon, 2 Tue, 3 Wed
+  };
 
-  const handleCheckout = () => {
+  const getShippingCost = () => {
+    if (shippingData.region === 'interior') return 0; // Pago en destino
+    if (shippingData.region === 'caba') {
+      if (isWednesday(shippingData.date)) return 0; // Gratis miercoles
+      return 7999 / dolarBlue; // Convert approximate ARS fixed cost to USD for total calc consistency (simplification)
+    }
+    return 0;
+  };
+
+  const shippingCostUSD = getShippingCost();
+  
+  // Convert shipping cost to ARS for display
+  const shippingCostARS = shippingData.region === 'caba' && !isWednesday(shippingData.date) ? 7999 : 0;
+
+  const handleCheckout = async () => {
     if (step === 'cart') setStep('shipping');
     else if (step === 'shipping') {
-      if (!shippingData.name || !shippingData.address || !shippingData.date) {
-        alert("Por favor complete los datos de envío.");
+      if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.province || !shippingData.locality || !shippingData.date) {
+        alert("Por favor complete todos los campos obligatorios.");
         return;
       }
       setStep('payment');
@@ -516,19 +555,87 @@ const CartDrawer: React.FC = () => {
         items: [...cart],
         total: totalUSD,
         customerName: shippingData.name,
-        address: shippingData.address,
-        deliveryDate: `${shippingData.date} ${shippingData.time}`,
+        address: `${shippingData.address}, ${shippingData.locality}, ${shippingData.province}`,
+        deliveryDate: `${shippingData.date} (${shippingData.region.toUpperCase()})`,
         status: 'pending',
         timestamp: Date.now()
       };
+      
       addOrder(newOrder);
-      alert("¡Pago exitoso con MercadoPago! Su pedido ha sido registrado.");
+
+      // Handle MercadoPago Payment
+      if (shippingData.paymentMethod === 'mp') {
+          setProcessing(true);
+          try {
+            // Prepare data for backend
+            const backendItems = cart.map(item => ({
+              title: item.nombre,
+              quantity: item.quantity,
+              unit_price: Math.ceil(item.precio_usd * dolarBlue)
+            }));
+
+            const response = await fetch('http://localhost:3000/create_preference', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                items: backendItems,
+                shippingCost: shippingCostARS,
+                external_reference: newOrder.id
+              }),
+            });
+
+            const data = await response.json();
+            if (data.init_point) {
+               window.location.href = data.init_point; // Redirect to MercadoPago
+            } else {
+               alert("Error al conectar con MercadoPago.");
+               setProcessing(false);
+            }
+          } catch (error) {
+            console.error(error);
+            alert("Error del servidor. Asegúrese de que el backend esté corriendo.");
+            setProcessing(false);
+          }
+          return;
+      }
+      
+      // Handle Cash Payment
+      setProcessing(true);
+      
+      // Schedule Delivery in Calendar (Sync)
+      try {
+         await fetch('http://localhost:3000/schedule_delivery', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              orderId: newOrder.id,
+              customerName: shippingData.name,
+              address: `${shippingData.address}, ${shippingData.locality}, ${shippingData.province}`,
+              deliveryDate: shippingData.date,
+              items: cart,
+              total: formatPrice(totalUSD + shippingCostUSD)
+            })
+         });
+         console.log("Evento agendado en Calendar.");
+      } catch (e) {
+         console.error("Error agendando en calendar", e);
+         // Continue flow even if calendar fails
+      }
+
+      setProcessing(false);
+      const methodMsg = 'Efectivo';
+      alert(`¡Pedido Confirmado!\nPago: ${methodMsg}\nEnvío agendado para: ${shippingData.date}\nSe ha notificado a Mr. Perkins.`);
+      
       clearCart();
       setIsCartOpen(false);
       setStep('cart');
-      setShippingData({ name: '', address: '', date: '', time: '' });
+      setShippingData({ name: '', phone: '', email: '', province: '', locality: '', address: '', date: '', region: 'caba', paymentMethod: 'mp' });
     }
   };
+
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${shippingData.address}, ${shippingData.locality}, ${shippingData.province}, Argentina`)}`;
 
   if (!isCartOpen) return null;
 
@@ -540,14 +647,14 @@ const CartDrawer: React.FC = () => {
         <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-luxury-black">
           <h2 className="text-xl font-serif text-gold-500">
             {step === 'cart' && 'Tu Carrito'}
-            {step === 'shipping' && 'Envío'}
-            {step === 'payment' && 'Pago'}
+            {step === 'shipping' && 'Datos de Entrega'}
+            {step === 'payment' && 'Confirmación y Pago'}
           </h2>
           <button onClick={() => setIsCartOpen(false)} className="text-gray-400 hover:text-white"><X /></button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gold-900 scrollbar-track-transparent">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <ShoppingBag size={48} className="mb-4 opacity-50" />
@@ -562,7 +669,10 @@ const CartDrawer: React.FC = () => {
                       <img src={item.image} className="w-16 h-16 object-cover rounded" alt={item.nombre} />
                       <div className="flex-1">
                         <h4 className="text-white font-medium">{item.nombre}</h4>
-                        <p className="text-gold-500 text-sm">{formatPrice(item.precio_usd)} x {item.quantity}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-gold-500 text-sm">{formatPrice(item.precio_usd)}</p>
+                            <span className="text-xs text-gray-500">x{item.quantity}</span>
+                        </div>
                       </div>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-400 self-center"><X size={18}/></button>
                     </div>
@@ -574,86 +684,217 @@ const CartDrawer: React.FC = () => {
               )}
 
               {step === 'shipping' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Nombre Completo</label>
+                <div className="space-y-4 text-sm">
+                  {/* Region Selection */}
+                  <div className="flex gap-2 mb-4 p-1 bg-neutral-900 rounded-lg">
+                    <button 
+                      onClick={() => setShippingData({...shippingData, region: 'caba'})}
+                      className={`flex-1 py-2 rounded-md transition-colors ${shippingData.region === 'caba' ? 'bg-gold-600 text-black font-bold' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      CABA
+                    </button>
+                    <button 
+                      onClick={() => setShippingData({...shippingData, region: 'interior'})}
+                      className={`flex-1 py-2 rounded-md transition-colors ${shippingData.region === 'interior' ? 'bg-gold-600 text-black font-bold' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      Interior
+                    </button>
+                  </div>
+
+                  {/* Personal Info */}
+                  <div className="space-y-3">
                     <input 
                       type="text" 
+                      placeholder="Nombre Completo *"
                       className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
                       value={shippingData.name}
                       onChange={e => setShippingData({...shippingData, name: e.target.value})}
                     />
+                    <input 
+                      type="tel" 
+                      placeholder="Teléfono *"
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
+                      value={shippingData.phone}
+                      onChange={e => setShippingData({...shippingData, phone: e.target.value})}
+                    />
+                    <input 
+                      type="email" 
+                      placeholder="Email (Opcional)"
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
+                      value={shippingData.email}
+                      onChange={e => setShippingData({...shippingData, email: e.target.value})}
+                    />
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Dirección de Envío</label>
+
+                  {/* Address Info */}
+                  <div className="space-y-3 pt-2 border-t border-neutral-800">
+                    <h4 className="text-gold-500 font-serif">Dirección de Entrega</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <input 
+                        type="text" 
+                        placeholder="Provincia *"
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
+                        value={shippingData.province}
+                        onChange={e => setShippingData({...shippingData, province: e.target.value})}
+                        />
+                        <input 
+                        type="text" 
+                        placeholder="Localidad/Zona *"
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
+                        value={shippingData.locality}
+                        onChange={e => setShippingData({...shippingData, locality: e.target.value})}
+                        />
+                    </div>
                     <input 
                       type="text" 
+                      placeholder="Calle y Altura *"
                       className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
                       value={shippingData.address}
                       onChange={e => setShippingData({...shippingData, address: e.target.value})}
                     />
+                    
+                    {/* Confirm Map Button */}
+                    {(shippingData.address && shippingData.locality) && (
+                        <a 
+                            href={mapUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 text-gold-400 text-xs hover:text-white border border-gold-600/30 rounded py-2 hover:bg-gold-600/10 transition-colors"
+                        >
+                            <MapPin size={14} /> Confirmar ubicación en Mapa
+                        </a>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Fecha</label>
-                      <input 
+
+                  {/* Date & Rules */}
+                  <div className="pt-2 border-t border-neutral-800">
+                     <label className="block text-xs text-gray-400 mb-1">Fecha de Entrega Preferida *</label>
+                     <input 
                         type="date" 
                         className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
                         value={shippingData.date}
+                        min={new Date().toISOString().split("T")[0]}
                         onChange={e => setShippingData({...shippingData, date: e.target.value})}
                       />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Horario</label>
-                      <select 
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded p-3 text-white focus:border-gold-500 outline-none"
-                        value={shippingData.time}
-                        onChange={e => setShippingData({...shippingData, time: e.target.value})}
-                      >
-                         <option value="">Seleccionar</option>
-                         <option value="Mañana (9-13hs)">Mañana (9-13hs)</option>
-                         <option value="Tarde (14-18hs)">Tarde (14-18hs)</option>
-                      </select>
-                    </div>
+                      {shippingData.region === 'caba' && (
+                          <div className="mt-2 text-xs">
+                             {isWednesday(shippingData.date) ? (
+                                 <span className="text-green-400 flex items-center gap-1"><CheckCircle size={12}/> ¡Envío Gratis por ser Miércoles!</span>
+                             ) : (
+                                 <span className="text-gray-400">Envío CABA (no miércoles): $7999 (después de 14hs)</span>
+                             )}
+                          </div>
+                      )}
+                      {shippingData.region === 'interior' && (
+                          <div className="mt-2 text-xs bg-neutral-800 p-2 rounded text-gray-300">
+                             <p className="mb-1">Envío por <strong>Via Cargo</strong> (Pago en destino).</p>
+                             <p className="mb-2">Origen: Microcentro (1005).</p>
+                             <a 
+                               href="https://viacargo.com.ar/cotizar-envio/" 
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="text-gold-500 underline flex items-center gap-1"
+                             >
+                                <ExternalLink size={10} /> Cotizar costo de envío
+                             </a>
+                          </div>
+                      )}
                   </div>
-                  <div className="bg-neutral-800 p-4 rounded text-sm text-gray-300 flex items-center gap-2">
-                    <Truck size={16} className="text-gold-500"/>
-                    Envío calculado: <span className="text-white font-bold">{formatPrice(shippingCostUSD)}</span>
-                  </div>
+
                 </div>
               )}
 
               {step === 'payment' && (
-                 <div className="text-center space-y-6 pt-8">
-                    <p className="text-gray-300">Total a pagar:</p>
-                    <div className="text-4xl font-bold text-gold-500">{formatPrice(totalUSD + shippingCostUSD)}</div>
-                    <div className="bg-[#009EE3] p-4 rounded-lg cursor-pointer hover:bg-[#008ED0] transition-colors flex items-center justify-center gap-3 text-white font-bold" onClick={handleCheckout}>
-                      <CreditCard size={24} />
-                      Pagar con MercadoPago
+                 <div className="space-y-6 pt-4">
+                    {/* Order Summary */}
+                    <div className="bg-neutral-900 p-4 rounded-lg space-y-2 text-sm border border-neutral-800">
+                       <div className="flex justify-between">
+                           <span className="text-gray-400">Subtotal</span>
+                           <span className="text-white">{formatPrice(totalUSD)}</span>
+                       </div>
+                       <div className="flex justify-between">
+                           <span className="text-gray-400">Envío ({shippingData.region.toUpperCase()})</span>
+                           <span className="text-gold-500">
+                               {shippingData.region === 'interior' 
+                                 ? 'A convenir (Via Cargo)' 
+                                 : (shippingCostARS === 0 ? 'GRATIS' : `$${shippingCostARS.toLocaleString('es-AR')}`)
+                               }
+                           </span>
+                       </div>
+                       <div className="pt-2 border-t border-neutral-800 flex justify-between text-lg font-bold">
+                           <span className="text-white">Total</span>
+                           <span className="text-gold-500">{formatPrice(totalUSD + shippingCostUSD)}</span>
+                       </div>
                     </div>
-                    <p className="text-xs text-gray-500">Transacción segura y encriptada.</p>
+
+                    {/* Payment Method Selection */}
+                    <div>
+                        <h4 className="text-gray-300 mb-3 font-serif">Forma de Pago</h4>
+                        <div className="space-y-2">
+                            <button 
+                              onClick={() => setShippingData({...shippingData, paymentMethod: 'mp'})}
+                              className={`w-full p-4 rounded-lg border flex items-center justify-between transition-all ${shippingData.paymentMethod === 'mp' ? 'bg-[#009EE3]/10 border-[#009EE3] text-white' : 'bg-neutral-900 border-neutral-800 text-gray-500 hover:border-gray-600'}`}
+                            >
+                               <span className="flex items-center gap-2"><CreditCard size={18}/> MercadoPago</span>
+                               {shippingData.paymentMethod === 'mp' && <CheckCircle size={18} className="text-[#009EE3]"/>}
+                            </button>
+                            
+                            {shippingData.region === 'caba' && (
+                                <button 
+                                onClick={() => setShippingData({...shippingData, paymentMethod: 'efectivo'})}
+                                className={`w-full p-4 rounded-lg border flex items-center justify-between transition-all ${shippingData.paymentMethod === 'efectivo' ? 'bg-green-900/20 border-green-600 text-white' : 'bg-neutral-900 border-neutral-800 text-gray-500 hover:border-gray-600'}`}
+                                >
+                                <span className="flex items-center gap-2"><DollarSign size={18}/> Efectivo Contra Entrega</span>
+                                {shippingData.paymentMethod === 'efectivo' && <CheckCircle size={18} className="text-green-500"/>}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {shippingData.paymentMethod === 'mp' && (
+                        <div className={`bg-[#009EE3] p-4 rounded-lg cursor-pointer hover:bg-[#008ED0] transition-colors flex items-center justify-center gap-3 text-white font-bold ${processing ? 'opacity-70 pointer-events-none' : ''}`} onClick={handleCheckout}>
+                          {processing ? <Loader2 className="animate-spin" /> : <CreditCard size={24} />}
+                          {processing ? 'Procesando...' : 'Pagar y Confirmar'}
+                        </div>
+                    )}
+                     {shippingData.paymentMethod === 'efectivo' && (
+                        <div className={`bg-green-600 p-4 rounded-lg cursor-pointer hover:bg-green-500 transition-colors flex items-center justify-center gap-3 text-white font-bold ${processing ? 'opacity-70' : ''}`} onClick={handleCheckout}>
+                          {processing ? <Loader2 className="animate-spin" /> : <Truck size={24} />}
+                          {processing ? 'Procesando...' : 'Confirmar Pedido (Pagar al recibir)'}
+                        </div>
+                    )}
+
+                    <p className="text-xs text-center text-gray-500">
+                        Al confirmar, se agendará tu entrega en nuestro calendario.
+                    </p>
                  </div>
               )}
             </>
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer Navigation */}
         {cart.length > 0 && step !== 'payment' && (
           <div className="p-6 border-t border-neutral-800 bg-luxury-black">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-gray-400">Subtotal</span>
-              <span className="text-xl font-bold text-white">{formatPrice(totalUSD)}</span>
-            </div>
-            <button 
-              onClick={handleCheckout}
-              className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg uppercase tracking-wider transition-colors"
-            >
-              {step === 'cart' ? 'Iniciar Compra' : 'Ir a Pagar'}
-            </button>
-            {step === 'shipping' && (
-                <button onClick={() => setStep('cart')} className="w-full mt-2 text-gray-500 text-sm hover:text-white">Volver al carrito</button>
-            )}
+             {step === 'cart' ? (
+                <div className="space-y-4">
+                     <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Subtotal</span>
+                        <span className="text-xl font-bold text-white">{formatPrice(totalUSD)}</span>
+                    </div>
+                    <button 
+                    onClick={handleCheckout}
+                    className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg uppercase tracking-wider transition-colors"
+                    >
+                    Iniciar Compra
+                    </button>
+                </div>
+             ) : (
+                <div className="flex gap-2">
+                    <button onClick={() => setStep('cart')} className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white py-3 rounded-lg">Volver</button>
+                    <button onClick={handleCheckout} className="flex-[2] bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg">Continuar</button>
+                </div>
+             )}
           </div>
         )}
       </div>
@@ -876,7 +1117,7 @@ const Catalog: React.FC = () => {
     if (filterBrand !== 'Fabricante') {
       result = result.filter(p => p.marca === filterBrand);
     }
-    if (filterGender !== 'Todos') {
+    if (filterGender !== 'Para Todos') {
       result = result.filter(p => p.genero === filterGender);
     }
 
@@ -902,7 +1143,7 @@ const Catalog: React.FC = () => {
           {filteredProducts.length === 0 ? (
              <div className="p-12 text-center text-gray-500">
                 <p>No se encontraron fragancias con estos filtros.</p>
-                <button onClick={() => {setFilterGender('Todos'); setFilterBrand('Fabricante');}} className="mt-4 text-gold-500 underline">Limpiar filtros</button>
+                <button onClick={() => {setFilterGender('Para Todos'); setFilterBrand('Fabricante');}} className="mt-4 text-gold-500 underline">Limpiar filtros</button>
              </div>
           ) : (
             filteredProducts.map((product) => (
