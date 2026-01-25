@@ -2,6 +2,9 @@
   "name": "mr-perkins-shop",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -15,7 +18,7 @@
     "express": "^4.19.2",
     "googleapis": "^140.0.0",
     "lucide-react": "^0.378.0",
-    "mercadopago": "^2.0.9",
+    "mercadopago": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.0"
