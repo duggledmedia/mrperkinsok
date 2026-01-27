@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -53,6 +53,7 @@ interface AppContextType {
   addUser: (user: User) => void;
   toggleUserStatus: (email: string) => void;
   deleteUser: (email: string) => void;
+  isAdmin: boolean;
 
   dolarBlue: number;
   formatPrice: (usd: number) => string;
@@ -108,14 +109,27 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializamos productos agregando márgenes por defecto si no existen
-  const [products, setProducts] = useState<Product[]>(() => 
-    PRODUCTS.map(p => ({
+  // Inicializamos productos desde LocalStorage si existen, sino desde constants
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('perkins_products');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved products", e);
+      }
+    }
+    return PRODUCTS.map(p => ({
       ...p,
-      margin_retail: 50, // 50% ganancia minorista por defecto
-      margin_wholesale: 15 // 15% ganancia mayorista por defecto
-    }))
-  );
+      margin_retail: 50,
+      margin_wholesale: 15
+    }));
+  });
+
+  // Guardar en LocalStorage cada vez que cambian los productos (Persistencia CMS)
+  useEffect(() => {
+    localStorage.setItem('perkins_products', JSON.stringify(products));
+  }, [products]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -301,7 +315,7 @@ const useStore = () => {
 // --- COMPONENTS ---
 
 const Footer = () => (
-  <footer className="bg-black border-t border-neutral-800 py-8 mt-12 relative z-10">
+  <footer className="bg-black border-t border-neutral-800 py-8 mt-12 relative z-10 pb-24">
     <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500 font-serif">
       <div className="tracking-widest uppercase text-center md:text-left">Mr Perkins 2026 (c) Todos los derechos reservados.</div>
       <div className="tracking-wider text-center md:text-right">
@@ -310,6 +324,29 @@ const Footer = () => (
     </div>
   </footer>
 );
+
+const FloatingPricingBar: React.FC = () => {
+  const { pricingMode, setPricingMode } = useStore();
+  
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
+      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-full p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-1">
+        <button 
+          onClick={() => setPricingMode('retail')}
+          className={`px-5 py-2.5 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'text-gray-400 hover:text-white'}`}
+        >
+          Minorista
+        </button>
+        <button 
+          onClick={() => setPricingMode('wholesale')}
+          className={`px-5 py-2.5 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'wholesale' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-gray-400 hover:text-white'}`}
+        >
+          Mayorista
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // COMPONENT: Quantity Control
 const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAdd: () => void, onRemove: () => void, compact?: boolean }> = ({ product, quantityInCart, onAdd, onRemove, compact }) => {
@@ -354,8 +391,7 @@ const Header: React.FC = () => {
   const { 
     cart, setIsCartOpen, 
     filterBrand, setFilterBrand, availableBrands,
-    filterGender, setFilterGender, availableGenders,
-    pricingMode, setPricingMode
+    filterGender, setFilterGender, availableGenders
   } = useStore();
 
   useEffect(() => {
@@ -383,23 +419,6 @@ const Header: React.FC = () => {
 
           {/* CENTER: Controls */}
           <div className="flex-1 flex flex-col md:flex-row justify-center items-center gap-2 min-w-0">
-             
-             {/* Pricing Mode Toggle */}
-             <div className="flex bg-black/60 backdrop-blur rounded-full p-1 border border-neutral-800">
-                <button 
-                  onClick={() => setPricingMode('retail')}
-                  className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider transition-all ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                >
-                  Minorista
-                </button>
-                <button 
-                  onClick={() => setPricingMode('wholesale')}
-                  className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider transition-all ${pricingMode === 'wholesale' ? 'bg-gold-600 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                >
-                  Mayorista
-                </button>
-             </div>
-
              {/* Filters */}
              <div className="flex items-center gap-1 w-full max-w-[280px]">
                 <div className="relative flex-1 min-w-0">
@@ -661,13 +680,20 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
   );
 };
 
-// CHAT GENERAL CON PERKINS (NO TIED TO PRODUCT)
+// CLASSIC PERKINS ADVISOR MODAL
 const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { dolarBlue } = useStore();
   const [chatInput, setChatInput] = useState("");
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([{ role: ChatRole.MODEL, text: "Bienvenido a mi boutique. Soy Mr. Perkins. ¿En qué puedo asesorarle hoy? ¿Busca algo para una ocasión especial, un regalo, o quizás para usted?" }]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-welcome with classic vibe
+  useEffect(() => {
+    setTimeout(() => {
+        setChatHistory([{ role: ChatRole.MODEL, text: "Bienvenido a la Boutique. Soy Mr. Perkins, su asesor personal en alta perfumería. ¿Busca una fragancia para una ocasión especial, un regalo, o para su deleite personal?" }]);
+    }, 500);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -690,46 +716,53 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-luxury-card w-full max-w-lg h-[80vh] rounded-2xl border border-gold-600/30 shadow-2xl flex flex-col overflow-hidden">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose} />
+      <div className="relative bg-[#111] w-full max-w-lg h-[80vh] rounded-2xl border border-gold-600/50 shadow-[0_0_50px_rgba(212,175,55,0.15)] flex flex-col overflow-hidden animate-slide-up">
         
-        {/* Header */}
-        <div className="p-4 bg-black border-b border-gold-600/20 flex items-center justify-between">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full border border-gold-500 overflow-hidden">
+        {/* Header - Classic Style */}
+        <div className="p-6 bg-gradient-to-b from-black to-neutral-900 border-b border-gold-600/30 flex items-center justify-between">
+           <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full border-2 border-gold-500 shadow-lg overflow-hidden">
                 <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover" />
               </div>
               <div>
-                 <h3 className="text-gold-500 font-serif font-bold">Mr. Perkins</h3>
-                 <p className="text-xs text-gray-500 uppercase tracking-widest">Su Asesor Personal</p>
+                 <h3 className="text-xl font-serif text-gold-500 font-bold tracking-wide">Mr. Perkins</h3>
+                 <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em]">Asesor de Lujo</p>
               </div>
            </div>
-           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
+           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
         </div>
         
         {/* Chat Area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-neutral-900/50">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-neutral-900/30">
             {chatHistory.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === ChatRole.USER ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-lg p-3 text-sm leading-relaxed ${msg.role === ChatRole.USER ? 'bg-neutral-800 text-white' : 'bg-gold-900/20 text-gold-100 border border-gold-600/20'}`}>
+                    <div className={`max-w-[85%] rounded-xl p-4 text-sm leading-relaxed shadow-sm ${msg.role === ChatRole.USER ? 'bg-neutral-800 text-gray-100' : 'bg-[#1a1a1a] text-gold-100 border border-gold-600/20'}`}>
                         {msg.text}
                     </div>
                 </div>
             ))}
-            {isTyping && <div className="text-xs text-gray-500 ml-2 animate-pulse">Mr. Perkins está pensando...</div>}
+            {isTyping && (
+                <div className="flex items-center gap-2 text-gold-500/50 text-xs ml-4">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>Mr. Perkins está pensando...</span>
+                </div>
+            )}
         </div>
 
         {/* Input */}
-        <div className="p-4 bg-black border-t border-neutral-800 flex gap-2">
-            <input 
-                type="text" 
-                value={chatInput} 
-                onChange={e => setChatInput(e.target.value)} 
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-                placeholder="Escriba su consulta..."
-                className="flex-1 bg-neutral-900 border border-neutral-700 rounded-full px-4 py-3 text-sm text-white focus:border-gold-500 outline-none"
-            />
-            <button onClick={handleSend} className="bg-gold-600 hover:bg-gold-500 text-black rounded-full p-3 transition-colors shadow-lg shadow-gold-600/20"><Send size={18} /></button>
+        <div className="p-4 bg-black border-t border-gold-600/20">
+            <div className="flex gap-2 bg-neutral-900/50 border border-neutral-700 rounded-full p-1 pl-4 focus-within:border-gold-500 transition-colors">
+                <input 
+                    type="text" 
+                    value={chatInput} 
+                    onChange={e => setChatInput(e.target.value)} 
+                    onKeyDown={e => e.key === 'Enter' && handleSend()}
+                    placeholder="Escriba su consulta aquí..."
+                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600"
+                />
+                <button onClick={handleSend} className="bg-gold-600 hover:bg-gold-500 text-black rounded-full p-2.5 transition-colors shadow-lg shadow-gold-600/10"><Send size={18} /></button>
+            </div>
         </div>
       </div>
     </div>
@@ -1038,7 +1071,8 @@ const Catalog: React.FC = () => {
 
           {viewMode === 'grid' ? (
              // GRID VIEW - FORCED 4 COLUMNS EVEN ON MOBILE
-             <div className="grid grid-cols-4 gap-2 md:gap-6">
+             // KEY prop added to force re-render and trigger animations on view/filter change
+             <div key={`grid-${filteredProducts.length}`} className="grid grid-cols-4 gap-2 md:gap-6">
                 {filteredProducts.map((product, index) => (
                   <div 
                     key={product.id} 
@@ -1051,7 +1085,7 @@ const Catalog: React.FC = () => {
              </div>
           ) : (
              // LIST VIEW - HORIZONTAL
-             <div className="flex flex-col gap-2 md:gap-4">
+             <div key={`list-${filteredProducts.length}`} className="flex flex-col gap-2 md:gap-4">
                 {filteredProducts.map((product, index) => (
                   <div 
                     key={product.id} 
@@ -1078,19 +1112,17 @@ const Catalog: React.FC = () => {
        </div>
 
        {/* Floating Perkins Button */}
-       <div className="fixed bottom-6 right-6 z-40 animate-slide-up">
+       <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
           <button 
             onClick={() => setIsPerkinsChatOpen(true)}
-            className="w-16 h-16 rounded-full border-2 border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.4)] overflow-hidden hover:scale-110 transition-transform duration-300 relative group"
+            className="w-16 h-16 rounded-full border-2 border-gold-500 shadow-[0_0_30px_rgba(212,175,55,0.5)] overflow-hidden hover:scale-110 transition-transform duration-300 relative group bg-black"
           >
              <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover" />
-             <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
+             <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
           </button>
-          <div className="absolute -top-10 right-0 bg-black/80 text-gold-400 text-[10px] px-3 py-1 rounded-full border border-gold-600/30 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-             Consultar a Mr. Perkins
-          </div>
        </div>
 
+       <FloatingPricingBar />
        <CartDrawer />
        <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
        {isPerkinsChatOpen && <PerkinsChatModal onClose={() => setIsPerkinsChatOpen(false)} />}
