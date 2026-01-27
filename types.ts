@@ -4,10 +4,12 @@ export interface Product {
   nombre: string;
   presentacion_ml: number;
   genero: string;
-  precio_usd: number;
+  precio_usd: number; // Ahora actua como COSTO BASE
   tags_olfativos: string[];
   image?: string;
-  stock: number; // Added stock management
+  stock: number;
+  margin_retail?: number; // Porcentaje de ganancia minorista
+  margin_wholesale?: number; // Porcentaje de ganancia mayorista
 }
 
 export interface CartItem extends Product {
@@ -23,6 +25,7 @@ export interface Order {
   deliveryDate: string;
   status: 'pending' | 'shipped' | 'delivered';
   timestamp: number;
+  type: 'retail' | 'wholesale'; // Tipo de orden
 }
 
 export interface PerkinsGesture {
