@@ -434,75 +434,161 @@ const Header: React.FC = () => {
   );
 };
 
+// RESTORED VIDEO HERO
 const VideoHero: React.FC = () => {
+  const [textIndex, setTextIndex] = useState(0);
+  const [fadeText, setFadeText] = useState(true);
+  const [entryAnimation, setEntryAnimation] = useState(false);
+
+  const changingWords = [
+    "Vos", "Tu Pareja", "Tu Familia", "Tu Amigo", "Tu Amiga",
+    "Tu Compañero", "Tu Vecina", "Tu Tía", "Tu Jefe"
+  ];
+
+  useEffect(() => {
+    setTimeout(() => setEntryAnimation(true), 100);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFadeText(false);
+      setTimeout(() => {
+        setTextIndex((prev) => (prev + 1) % changingWords.length);
+        setFadeText(true);
+      }, 500);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleScrollDown = () => {
+    window.scrollTo({ top: window.innerHeight * 0.85, behavior: 'smooth' });
+  };
+
   return (
-    <div className="relative h-[50vh] min-h-[400px] w-full overflow-hidden">
-      <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center text-center p-4">
-        <h1 className="text-4xl md:text-6xl font-serif text-gold-500 mb-4 animate-fade-in drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]">
-          MR. PERKINS
-        </h1>
-        <p className="text-gray-300 text-lg md:text-xl max-w-2xl animate-slide-up font-light tracking-wide">
-          Sommelier de Fragancias Exclusivas
-        </p>
-      </div>
-       <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1615634260167-c8cdede054de?q=80&w=2070&auto=format&fit=crop" 
-            alt="Luxury Perfume Background" 
-            className="w-full h-full object-cover opacity-50 grayscale hover:grayscale-0 transition-all duration-1000"
-          />
-       </div>
+    <div className="relative h-[85vh] w-full bg-luxury-black overflow-hidden group">
+         <div className="absolute inset-0 z-0">
+             <video
+                className="w-full h-full object-cover opacity-90"
+                muted
+                autoPlay
+                loop
+                playsInline
+                poster="https://xnvaqwwcfmpybhodcipl.supabase.co/storage/v1/object/public/PERKINS/Perks.webp"
+             >
+                <source src="https://xnvaqwwcfmpybhodcipl.supabase.co/storage/v1/object/public/PERKINS/Perks.mp4" type="video/mp4" />
+                <source src="https://xnvaqwwcfmpybhodcipl.supabase.co/storage/v1/object/public/PERKINS/Perks.webm" type="video/webm" />
+             </video>
+             <div className="absolute inset-0 bg-black/40" />
+             <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-luxury-black via-luxury-black/80 to-transparent" />
+         </div>
+
+         <div className="relative z-10 h-full flex flex-col justify-center px-6 md:px-16 lg:px-24 pointer-events-none">
+            <div className={`transition-all duration-1000 transform ${entryAnimation ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}>
+               <span className="block text-xl md:text-3xl text-gray-200 font-serif tracking-widest uppercase mb-2 drop-shadow-md">
+                 Los mejores Perfumes...
+               </span>
+               <div className="flex flex-col md:flex-row md:items-baseline gap-2 md:gap-4">
+                 <span className="text-4xl md:text-6xl text-gray-300 font-serif italic font-light">
+                   Para
+                 </span>
+                 <span className={`text-5xl md:text-8xl font-bold font-serif text-gold-500 drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] transition-all duration-500 transform ${fadeText ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'}`}>
+                   {changingWords[textIndex]}
+                 </span>
+               </div>
+            </div>
+         </div>
+
+         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 cursor-pointer pointer-events-auto" onClick={handleScrollDown}>
+            <div className="flex flex-col items-center gap-1 animate-bounce opacity-70 hover:opacity-100 transition-opacity">
+                <span className="text-[10px] text-gold-400 uppercase tracking-widest font-light">Ver Catálogo</span>
+                <ChevronsDown className="text-gold-500 w-6 h-6" />
+            </div>
+         </div>
     </div>
   );
 };
 
+// RESTORED HORIZONTAL PRODUCT ITEM WITH QUANTITY CONTROLS
 const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
   const { cart, addToCart, decreaseFromCart, calculateFinalPrice, formatPrice, removeFromCart } = useStore();
+  const [imgError, setImgError] = useState(false);
   const cartItem = cart.find(i => i.id === product.id);
   const qty = cartItem ? cartItem.quantity : 0;
   const price = calculateFinalPrice(product);
+  const isOutOfStock = product.stock <= 0;
 
   return (
-    <div 
+    <div
       onClick={onClick}
-      className="group relative bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 hover:border-gold-600/50 transition-all duration-300 hover:shadow-[0_0_20px_rgba(212,175,55,0.1)] cursor-pointer flex flex-col"
+      className={`group relative bg-luxury-card border-b border-neutral-800 p-3 cursor-pointer hover:bg-neutral-800/80 transition-all duration-500 flex items-center gap-4 ${isOutOfStock ? 'opacity-60' : ''}`}
     >
-      <div className="relative aspect-square overflow-hidden bg-white/5">
-         <img 
-           src={product.image} 
-           alt={product.nombre} 
-           loading="lazy"
-           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-         />
-         {product.stock <= 0 && (
-           <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
-             <span className="text-red-500 font-bold border-2 border-red-500 px-4 py-2 rounded uppercase tracking-widest transform -rotate-12">Agotado</span>
-           </div>
+      {/* Image */}
+      <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-neutral-900 rounded-md overflow-hidden border border-neutral-800 group-hover:border-gold-500/50 transition-colors relative">
+         {!imgError ? (
+           <img
+             src={product.image}
+             alt={product.nombre}
+             loading="lazy"
+             onError={() => setImgError(true)}
+             className={`w-full h-full object-cover transition-opacity ${isOutOfStock ? 'grayscale opacity-50' : 'opacity-90 group-hover:opacity-100'}`}
+           />
+         ) : (
+           <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={16} /></div>
          )}
-         <div className="absolute top-2 right-2 z-10">
-            <span className="bg-black/80 backdrop-blur text-gold-400 text-[10px] font-bold px-2 py-1 rounded border border-gold-600/20 uppercase tracking-wider">
-              {product.genero}
-            </span>
-         </div>
       </div>
-      
-      <div className="p-4 flex flex-col flex-1">
-        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{product.marca}</div>
-        <h3 className="text-white font-medium text-lg leading-tight mb-2 group-hover:text-gold-400 transition-colors line-clamp-2">
-          {product.nombre}
-        </h3>
-        
-        <div className="mt-auto flex items-center justify-between">
-          <div className="text-gold-500 font-bold text-lg">{formatPrice(price)}</div>
-          <div onClick={e => e.stopPropagation()}>
-             <QuantityControl 
-               product={product} 
-               quantityInCart={qty} 
-               onAdd={() => addToCart(product)} 
-               onRemove={() => decreaseFromCart(product)} 
+
+      {/* Info */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className="flex justify-between items-start">
+           <div>
+             <h3 className={`text-base sm:text-lg font-serif transition-colors truncate ${isOutOfStock ? 'text-gray-500 line-through' : 'text-white group-hover:text-gold-400'}`}>{product.nombre}</h3>
+             <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-gold-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">{product.marca}</span>
+                <span className="text-gray-500 text-[10px] sm:text-xs">• {product.presentacion_ml} ML</span>
+                <span className="text-gray-400 text-[10px] sm:text-xs border border-gray-700 rounded px-1">{product.genero}</span>
+                {isOutOfStock ? (
+                    <span className="bg-red-900/50 text-red-200 border border-red-800 text-[9px] px-1 rounded font-bold uppercase">Agotado</span>
+                ) : (
+                    product.stock < 3 && <span className="text-yellow-500 text-[9px] font-bold animate-pulse">¡Últimas {product.stock}!</span>
+                )}
+             </div>
+           </div>
+           {/* Mobile Price */}
+           <div className="text-right sm:hidden">
+             <span className="text-white font-bold text-sm block">{formatPrice(price)}</span>
+           </div>
+        </div>
+
+        <div className="hidden sm:block mt-1">
+          <p className="text-[10px] sm:text-xs text-gray-500 truncate max-w-lg">{product.tags_olfativos.join(', ')}</p>
+        </div>
+      </div>
+
+      {/* Desktop Price & Controls */}
+      <div className="hidden sm:flex flex-col items-end gap-1 ml-2 min-w-[100px]">
+        <span className="text-gold-500 font-bold text-lg">{formatPrice(price)}</span>
+        <div onClick={e => e.stopPropagation()}>
+             <QuantityControl
+               product={product}
+               quantityInCart={qty}
+               onAdd={() => addToCart(product)}
+               onRemove={() => decreaseFromCart(product)}
+               compact
+             />
+        </div>
+      </div>
+
+      {/* Mobile Controls */}
+      <div className="sm:hidden flex flex-col items-end justify-between h-16" onClick={e => e.stopPropagation()}>
+          <div className="mt-auto">
+            <QuantityControl
+               product={product}
+               quantityInCart={qty}
+               onAdd={() => addToCart(product)}
+               onRemove={() => decreaseFromCart(product)}
+               compact
              />
           </div>
-        </div>
       </div>
     </div>
   );
@@ -780,15 +866,15 @@ const Catalog: React.FC = () => {
        <Header />
        <VideoHero />
        
-       <div className="container mx-auto px-4 py-8 relative z-10 -mt-10">
-          <div className="bg-black/80 backdrop-blur-md rounded-xl p-6 border border-neutral-800 shadow-2xl mb-8">
+       <div className="container mx-auto px-0 md:px-4 py-8 relative z-10 -mt-10">
+          <div className="bg-black/80 backdrop-blur-md rounded-xl p-6 border border-neutral-800 shadow-2xl mb-8 mx-4 md:mx-0">
              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                  <h2 className="text-xl font-serif text-white">Catálogo Exclusivo</h2>
                  <p className="text-gray-400 text-sm">{filteredProducts.length} fragancias encontradas</p>
              </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="flex flex-col gap-0 md:gap-4 md:px-0">
              {filteredProducts.map(product => (
                <ProductListItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
              ))}
