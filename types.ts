@@ -10,6 +10,7 @@ export interface Product {
   stock: number;
   margin_retail?: number; // Porcentaje de ganancia minorista
   margin_wholesale?: number; // Porcentaje de ganancia mayorista
+  deleted?: boolean; // Para borrado lógico
 }
 
 export interface CartItem extends Product {
