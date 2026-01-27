@@ -61,6 +61,9 @@ interface AppContextType {
   // Pricing Mode
   pricingMode: 'retail' | 'wholesale';
   setPricingMode: (mode: 'retail' | 'wholesale') => void;
+  // View Mode
+  viewMode: 'grid' | 'list';
+  setViewMode: (mode: 'grid' | 'list') => void;
   // Filter State
   filterBrand: string;
   setFilterBrand: (v: string) => void;
@@ -141,6 +144,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const [dolarBlue, setDolarBlue] = useState(1200);
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   const [alertData, setAlertData] = useState<AlertData>({ isOpen: false, title: '', message: '', type: 'info' });
 
@@ -296,7 +300,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, 
       currentUser, login, logout, users, addUser, toggleUserStatus, deleteUser, isAdmin: currentUser?.role === 'admin',
       dolarBlue, formatPrice, calculateFinalPrice,
-      pricingMode, setPricingMode,
+      pricingMode, setPricingMode, viewMode, setViewMode,
       filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders,
       showAlert, closeAlert
     }}>
@@ -329,17 +333,17 @@ const FloatingPricingBar: React.FC = () => {
   const { pricingMode, setPricingMode } = useStore();
   
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-full p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-1">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
+      <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-full p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-1">
         <button 
           onClick={() => setPricingMode('retail')}
-          className={`px-5 py-2.5 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'text-gray-400 hover:text-white'}`}
+          className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'text-gray-400 hover:text-white'}`}
         >
           Minorista
         </button>
         <button 
           onClick={() => setPricingMode('wholesale')}
-          className={`px-5 py-2.5 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'wholesale' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-gray-400 hover:text-white'}`}
+          className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'wholesale' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-gray-400 hover:text-white'}`}
         >
           Mayorista
         </button>
@@ -391,7 +395,8 @@ const Header: React.FC = () => {
   const { 
     cart, setIsCartOpen, 
     filterBrand, setFilterBrand, availableBrands,
-    filterGender, setFilterGender, availableGenders
+    filterGender, setFilterGender, availableGenders,
+    viewMode, setViewMode
   } = useStore();
 
   useEffect(() => {
@@ -403,16 +408,16 @@ const Header: React.FC = () => {
   const cartTotalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-700 ${scrolled ? 'bg-luxury-black/95 backdrop-blur-md border-b border-gold-600/20 py-2' : 'bg-gradient-to-b from-black/80 to-transparent py-4'}`}>
+    <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-700 ${scrolled ? 'bg-luxury-black/95 backdrop-blur-md border-b border-gold-600/20 py-1' : 'bg-gradient-to-b from-black/80 to-transparent py-2'}`}>
       <div className="container mx-auto px-2">
-        <div className="flex items-center justify-between gap-2 h-14 relative">
+        <div className="flex items-center justify-between gap-2 h-12 relative">
           
           {/* LEFT: Logo */}
-          <div className="flex-shrink-0 z-20 cursor-pointer w-10 md:w-auto" onClick={() => window.scrollTo(0,0)}>
+          <div className="flex-shrink-0 z-20 cursor-pointer w-8 md:w-auto" onClick={() => window.scrollTo(0,0)}>
             <img 
               src={PERKINS_IMAGES.LOGO} 
               alt="Mr. Perkins" 
-              className={`transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)] ${scrolled ? 'h-10 md:h-12' : 'h-12 md:h-16'}`}
+              className={`transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)] ${scrolled ? 'h-8 md:h-10' : 'h-10 md:h-12'}`}
               onError={(e) => { e.currentTarget.src = PERKINS_IMAGES.HOLA; }}
             />
           </div>
@@ -443,13 +448,31 @@ const Header: React.FC = () => {
              </div>
           </div>
 
-          {/* RIGHT: Cart */}
-          <div className="flex-shrink-0 z-20 w-10 md:w-auto flex justify-end">
+          {/* RIGHT: View Toggle & Cart */}
+          <div className="flex-shrink-0 z-20 flex items-center gap-1">
+             {/* VIEW TOGGLE BUTTONS */}
+             <div className="flex gap-1 bg-black/40 backdrop-blur border border-neutral-800 rounded-lg p-0.5">
+                <button 
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                  title="Vista Cuadrícula"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                  title="Vista Lista"
+                >
+                  <List size={16} />
+                </button>
+             </div>
+
              <button 
               onClick={() => setIsCartOpen(true)}
               className="relative text-gold-400 hover:text-white transition-colors p-2 md:p-3 group"
              >
-               <ShoppingBag size={24} className="group-hover:drop-shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-all md:w-7 md:h-7" />
+               <ShoppingBag size={22} className="group-hover:drop-shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-all md:w-6 md:h-6" />
                {cartTotalItems > 0 && (
                  <span className="absolute top-0 right-0 bg-red-600 text-white text-[9px] md:text-[10px] font-bold w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center border border-black shadow-lg">
                    {cartTotalItems}
@@ -680,7 +703,7 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
   );
 };
 
-// CLASSIC PERKINS ADVISOR MODAL
+// CLASSIC PERKINS ADVISOR MODAL (VISUAL NOVEL STYLE)
 const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { dolarBlue } = useStore();
   const [chatInput, setChatInput] = useState("");
@@ -691,7 +714,7 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   // Auto-welcome with classic vibe
   useEffect(() => {
     setTimeout(() => {
-        setChatHistory([{ role: ChatRole.MODEL, text: "Bienvenido a la Boutique. Soy Mr. Perkins, su asesor personal en alta perfumería. ¿Busca una fragancia para una ocasión especial, un regalo, o para su deleite personal?" }]);
+        setChatHistory([{ role: ChatRole.MODEL, text: "Bienvenido a mi Boutique. Soy Mr. Perkins. ¿En qué puedo asistirle hoy?" }]);
     }, 500);
   }, []);
 
@@ -717,51 +740,60 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose} />
-      <div className="relative bg-[#111] w-full max-w-lg h-[80vh] rounded-2xl border border-gold-600/50 shadow-[0_0_50px_rgba(212,175,55,0.15)] flex flex-col overflow-hidden animate-slide-up">
+      <div className="relative bg-luxury-card w-full max-w-4xl h-[90vh] rounded-2xl border border-gold-600/50 shadow-[0_0_50px_rgba(212,175,55,0.15)] flex flex-col md:flex-row overflow-hidden animate-slide-up">
         
-        {/* Header - Classic Style */}
-        <div className="p-6 bg-gradient-to-b from-black to-neutral-900 border-b border-gold-600/30 flex items-center justify-between">
-           <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full border-2 border-gold-500 shadow-lg overflow-hidden">
-                <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover" />
-              </div>
-              <div>
-                 <h3 className="text-xl font-serif text-gold-500 font-bold tracking-wide">Mr. Perkins</h3>
-                 <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em]">Asesor de Lujo</p>
-              </div>
-           </div>
-           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
-        </div>
-        
-        {/* Chat Area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-neutral-900/30">
-            {chatHistory.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === ChatRole.USER ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-xl p-4 text-sm leading-relaxed shadow-sm ${msg.role === ChatRole.USER ? 'bg-neutral-800 text-gray-100' : 'bg-[#1a1a1a] text-gold-100 border border-gold-600/20'}`}>
-                        {msg.text}
-                    </div>
-                </div>
-            ))}
-            {isTyping && (
-                <div className="flex items-center gap-2 text-gold-500/50 text-xs ml-4">
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>Mr. Perkins está pensando...</span>
-                </div>
-            )}
-        </div>
+        {/* CLOSE BUTTON */}
+        <button onClick={onClose} className="absolute top-4 right-4 z-50 text-white bg-black/50 p-2 rounded-full hover:bg-black transition-colors"><X size={24} /></button>
 
-        {/* Input */}
-        <div className="p-4 bg-black border-t border-gold-600/20">
-            <div className="flex gap-2 bg-neutral-900/50 border border-neutral-700 rounded-full p-1 pl-4 focus-within:border-gold-500 transition-colors">
-                <input 
-                    type="text" 
-                    value={chatInput} 
-                    onChange={e => setChatInput(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSend()}
-                    placeholder="Escriba su consulta aquí..."
-                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600"
-                />
-                <button onClick={handleSend} className="bg-gold-600 hover:bg-gold-500 text-black rounded-full p-2.5 transition-colors shadow-lg shadow-gold-600/10"><Send size={18} /></button>
+        {/* VISUAL PART (IMAGE) */}
+        <div className="w-full md:w-1/2 bg-black relative flex items-end justify-center overflow-hidden border-b md:border-b-0 md:border-r border-gold-600/20">
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10" />
+            <img 
+                src={PERKINS_IMAGES.HOLA} 
+                className="h-full w-auto object-cover object-top md:object-center transform scale-110" 
+                alt="Mr. Perkins"
+            />
+            <div className="absolute bottom-6 left-6 z-20">
+                <h3 className="text-3xl font-serif text-gold-500 font-bold drop-shadow-lg">Mr. Perkins</h3>
+                <p className="text-sm text-gray-300 uppercase tracking-widest drop-shadow-md">Su Asesor de Confianza</p>
+            </div>
+        </div>
+        
+        {/* CHAT PART */}
+        <div className="w-full md:w-1/2 flex flex-col bg-neutral-900">
+            <div className="p-4 border-b border-neutral-800 bg-black/50">
+                <span className="text-gold-500 text-xs uppercase tracking-widest flex items-center gap-2"><Crown size={14}/> Sala de Consultas</span>
+            </div>
+
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-neutral-900/30">
+                {chatHistory.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === ChatRole.USER ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] rounded-xl p-4 text-sm leading-relaxed shadow-sm ${msg.role === ChatRole.USER ? 'bg-neutral-800 text-gray-100' : 'bg-[#1a1a1a] text-gold-100 border border-gold-600/20'}`}>
+                            {msg.text}
+                        </div>
+                    </div>
+                ))}
+                {isTyping && (
+                    <div className="flex items-center gap-2 text-gold-500/50 text-xs ml-4">
+                        <Loader2 size={12} className="animate-spin" />
+                        <span>Mr. Perkins está pensando...</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Input */}
+            <div className="p-4 bg-black border-t border-gold-600/20">
+                <div className="flex gap-2 bg-neutral-900/50 border border-neutral-700 rounded-full p-1 pl-4 focus-within:border-gold-500 transition-colors">
+                    <input 
+                        type="text" 
+                        value={chatInput} 
+                        onChange={e => setChatInput(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && handleSend()}
+                        placeholder="Escriba su consulta aquí..."
+                        className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600"
+                    />
+                    <button onClick={handleSend} className="bg-gold-600 hover:bg-gold-500 text-black rounded-full p-2.5 transition-colors shadow-lg shadow-gold-600/10"><Send size={18} /></button>
+                </div>
             </div>
         </div>
       </div>
@@ -1022,9 +1054,8 @@ const CartDrawer: React.FC = () => {
 
 // UPDATED CATALOG: Grid Layout + Removed Count Text
 const Catalog: React.FC = () => {
-  const { products, filterBrand, filterGender, sortPrice } = useStore();
+  const { products, filterBrand, filterGender, sortPrice, viewMode, setViewMode } = useStore();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isPerkinsChatOpen, setIsPerkinsChatOpen] = useState(false);
 
   const filteredProducts = useMemo(() => {
@@ -1045,30 +1076,6 @@ const Catalog: React.FC = () => {
        <VideoHero />
        
        <div className="container mx-auto px-4 py-8 relative z-10 -mt-10 flex-1">
-          <div className="bg-black/80 backdrop-blur-md rounded-xl p-6 border border-neutral-800 shadow-2xl mb-8">
-             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                 <h2 className="text-xl font-serif text-white">Catálogo Exclusivo</h2>
-                 
-                 {/* VIEW TOGGLE BUTTONS */}
-                 <div className="flex gap-2 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
-                    <button 
-                      onClick={() => setViewMode('grid')}
-                      className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
-                      title="Vista Cuadrícula"
-                    >
-                      <LayoutGrid size={18} />
-                    </button>
-                    <button 
-                      onClick={() => setViewMode('list')}
-                      className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
-                      title="Vista Lista"
-                    >
-                      <List size={18} />
-                    </button>
-                 </div>
-             </div>
-          </div>
-
           {viewMode === 'grid' ? (
              // GRID VIEW - FORCED 4 COLUMNS EVEN ON MOBILE
              // KEY prop added to force re-render and trigger animations on view/filter change
@@ -1112,7 +1119,7 @@ const Catalog: React.FC = () => {
        </div>
 
        {/* Floating Perkins Button */}
-       <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+       <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
           <button 
             onClick={() => setIsPerkinsChatOpen(true)}
             className="w-16 h-16 rounded-full border-2 border-gold-500 shadow-[0_0_30px_rgba(212,175,55,0.5)] overflow-hidden hover:scale-110 transition-transform duration-300 relative group bg-black"
