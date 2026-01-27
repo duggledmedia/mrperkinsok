@@ -25,11 +25,15 @@ function loadDb() {
     if (fs.existsSync(DB_PATH)) {
       const data = fs.readFileSync(DB_PATH, 'utf8');
       return JSON.parse(data);
+    } else {
+      // Create empty DB if not exists
+      fs.writeFileSync(DB_PATH, JSON.stringify({}, null, 2));
+      return {};
     }
   } catch (e) {
     console.error("Error reading DB:", e);
+    return {};
   }
-  return {};
 }
 
 function saveDb(data) {
@@ -85,25 +89,41 @@ if (clientEmail && privateKey && calendarId) {
 
 // 0. Product Management (CMS Persistence)
 app.get('/api/products', (req, res) => {
-  // Always read fresh from disk to ensure sync across processes if needed
   productOverrides = loadDb();
   res.json(productOverrides);
 });
 
+// Single Product Update
 app.post('/api/products', (req, res) => {
   const { id, updates } = req.body;
   if (!id) return res.status(400).json({ error: 'Missing Product ID' });
   
-  // Reload DB to get latest state
   productOverrides = loadDb();
-  
-  // Merge updates
   productOverrides[id] = { ...(productOverrides[id] || {}), ...updates };
-  
-  // Persist to disk
   saveDb(productOverrides);
   
   console.log(`📝 Producto actualizado [${id}]:`, updates);
+  res.json({ success: true, overrides: productOverrides });
+});
+
+// Bulk Product Update (For Global Margins)
+app.post('/api/products/bulk', (req, res) => {
+  const { updatesArray } = req.body; // Expects [{ id: '...', updates: {...} }, ...]
+  
+  if (!Array.isArray(updatesArray)) {
+    return res.status(400).json({ error: 'updatesArray must be an array' });
+  }
+
+  productOverrides = loadDb();
+  
+  updatesArray.forEach(item => {
+    if (item.id && item.updates) {
+       productOverrides[item.id] = { ...(productOverrides[item.id] || {}), ...item.updates };
+    }
+  });
+
+  saveDb(productOverrides);
+  console.log(`📝 Actualización masiva procesada: ${updatesArray.length} productos.`);
   res.json({ success: true, overrides: productOverrides });
 });
 
@@ -207,7 +227,8 @@ app.listen(port, () => {
   console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
   console.log(`   Base de datos: ${DB_PATH}`);
   console.log(`   Rutas disponibles:`);
-  console.log(`   - GET/POST /api/products (CMS Sync)`);
+  console.log(`   - GET/POST /api/products (Single Update)`);
+  console.log(`   - POST /api/products/bulk (Bulk Update)`);
   console.log(`   - POST /api/create_preference`);
   console.log(`   - POST /api/schedule_delivery\n`);
 });

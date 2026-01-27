@@ -112,10 +112,11 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializamos productos con los datos base
+  // Inicializamos productos con los datos base de constants.ts
+  // Estos actuarán como fallback hasta que cargue la BD
   const [products, setProducts] = useState<Product[]>(PRODUCTS.map(p => ({
       ...p,
-      margin_retail: 50,
+      margin_retail: 50, // Defaults
       margin_wholesale: 15
   })));
 
@@ -128,18 +129,19 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           const overrides = await response.json();
           setProducts(currentProducts => currentProducts.map(p => {
             const override = overrides[p.id];
-            // Si hay override, lo aplicamos sobre el producto base
+            // Si hay override en la BD, lo aplicamos sobre el producto base
             return override ? { ...p, ...override } : p;
           }));
         }
       } catch (error) {
         // Silent fail in offline mode to not annoy user
+        console.warn("Could not fetch product updates", error);
       }
     };
 
     fetchUpdates();
-    // Polling más frecuente (cada 5s) para que los cambios se vean rápido
-    const interval = setInterval(fetchUpdates, 5000);
+    // Polling más frecuente (cada 3s) para que los cambios se vean rápido entre usuarios
+    const interval = setInterval(fetchUpdates, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -183,10 +185,11 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --- LOGICA DE PRECIOS ---
   const calculateFinalPrice = (product: Product): number => {
     const margin = pricingMode === 'wholesale' 
-      ? (product.margin_wholesale || 15) 
-      : (product.margin_retail || 50);
+      ? (product.margin_wholesale ?? 15) // Use nullish coalescing for safety
+      : (product.margin_retail ?? 50);
     
     // Costo Base * (1 + Margen%)
+    // El precio_usd en Product ahora es el COSTO.
     return product.precio_usd * (1 + margin / 100);
   };
 
@@ -196,10 +199,10 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
-    // 1. Optimistic Update (Local)
+    // 1. Optimistic Update (Local) - Feedback instantáneo
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     
-    // 2. Server Persist
+    // 2. Server Persist (Guardar en DB)
     try {
       await fetch('/api/products', {
         method: 'POST',
@@ -208,30 +211,41 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       });
     } catch (e) {
       console.error("Failed to persist product update", e);
-      showAlert("Error de Conexión", "El cambio se aplicó localmente pero no se pudo guardar en el servidor.", "error");
+      showAlert("Error de Conexión", "El cambio se aplicó localmente pero no se pudo guardar en el servidor. Verifique si el servidor (node server.js) está corriendo.", "error");
     }
   };
 
   const bulkUpdateMargins = async (type: 'retail' | 'wholesale', value: number) => {
-    // Para updates masivos, iteramos y enviamos (idealmente sería un endpoint batch, pero por simplicidad...)
+    // 1. Optimistic Update Local
+    const key = type === 'retail' ? 'margin_retail' : 'margin_wholesale';
     const newProducts = products.map(p => ({
       ...p,
-      [type === 'retail' ? 'margin_retail' : 'margin_wholesale']: value
+      [key]: value
     }));
-    
     setProducts(newProducts);
 
-    // Enviar updates en segundo plano para no bloquear
-    newProducts.forEach(p => {
-        fetch('/api/products', {
+    // 2. Efficient Server Persist (Bulk API Endpoint)
+    // Create the payload expected by the server
+    const updatesArray = newProducts.map(p => ({
+      id: p.id,
+      updates: { [key]: value }
+    }));
+
+    try {
+        const response = await fetch('/api/products/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                id: p.id, 
-                updates: { [type === 'retail' ? 'margin_retail' : 'margin_wholesale']: value } 
-            })
-        }).catch(console.error);
-    });
+            body: JSON.stringify({ updatesArray })
+        });
+        
+        if (!response.ok) throw new Error("Bulk update failed");
+        
+        showAlert("Actualización Masiva Exitosa", `Se ha actualizado el margen ${type === 'retail' ? 'minorista' : 'mayorista'} al ${value}% para todos los productos.`, 'success');
+        
+    } catch (error) {
+        console.error(error);
+        showAlert("Error", "Falló la actualización masiva en el servidor.", "error");
+    }
   };
 
   const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
