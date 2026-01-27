@@ -2,27 +2,27 @@ import { put, list } from '@vercel/blob';
 
 // Helper para obtener la DB desde Blob Storage
 async function getDbFromBlob() {
-  // Buscamos el archivo db.json en el bucket
   const { blobs } = await list({ prefix: 'db.json', limit: 1 });
   
   if (blobs.length > 0) {
-    // Si existe, descargamos su contenido
-    const response = await fetch(blobs[0].url);
+    // timestamp evita el cache de la URL del blob
+    const response = await fetch(`${blobs[0].url}?t=${Date.now()}`);
     return await response.json();
   }
-  
-  // Si no existe, retornamos objeto vacío
   return {};
 }
 
 // Helper para guardar en Blob Storage
 async function saveDbToBlob(data) {
-  // addRandomSuffix: false asegura que sobrescribimos el archivo "db.json" lógico
-  // access: 'public' es necesario para poder leerlo luego vía fetch
   await put('db.json', JSON.stringify(data), { access: 'public', addRandomSuffix: false });
 }
 
 export default async function handler(req, res) {
+  // CRITICO: Desactivar caché para ver cambios inmediatos
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,28 +35,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. OBTENER DATOS (GET)
     if (req.method === 'GET') {
       const data = await getDbFromBlob();
       return res.status(200).json(data);
     } 
     
-    // 2. ACTUALIZAR UN PRODUCTO (POST)
     else if (req.method === 'POST') {
       const { id, updates } = req.body;
       
       if (!id) return res.status(400).json({ error: 'Falta ID' });
 
-      // Obtenemos estado actual
       const currentData = await getDbFromBlob();
       
-      // Merge del producto especifico
       const updatedData = {
         ...currentData,
         [id]: { ...(currentData[id] || {}), ...updates }
       };
 
-      // Guardamos en Blob
       await saveDbToBlob(updatedData);
 
       return res.status(200).json({ success: true, overrides: updatedData });

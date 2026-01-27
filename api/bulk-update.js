@@ -1,22 +1,22 @@
 import { put, list } from '@vercel/blob';
 
-// Helper para obtener la DB desde Blob Storage
 async function getDbFromBlob() {
   const { blobs } = await list({ prefix: 'db.json', limit: 1 });
   if (blobs.length > 0) {
-    const response = await fetch(blobs[0].url);
+    const response = await fetch(`${blobs[0].url}?t=${Date.now()}`);
     return await response.json();
   }
   return {};
 }
 
-// Helper para guardar en Blob Storage
 async function saveDbToBlob(data) {
   await put('db.json', JSON.stringify(data), { access: 'public', addRandomSuffix: false });
 }
 
 export default async function handler(req, res) {
-  // Configurar CORS
+  // CRITICO: Desactivar caché
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -38,17 +38,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'updatesArray must be an array' });
     }
 
-    // 1. Obtener toda la base de datos actual desde la nube
     const currentData = await getDbFromBlob();
     
-    // 2. Aplicar todos los cambios en memoria
     updatesArray.forEach(item => {
         if (item.id && item.updates) {
            currentData[item.id] = { ...(currentData[item.id] || {}), ...item.updates };
         }
     });
 
-    // 3. Subir el archivo actualizado al Blob
     await saveDbToBlob(currentData);
 
     return res.status(200).json({ success: true, overrides: currentData });
