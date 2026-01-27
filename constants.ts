@@ -21,7 +21,6 @@ const PRODUCT_IMAGES_BASE_URL = "https://xnvaqwwcfmpybhodcipl.supabase.co/storag
 
 // Helper to determine brand and format name from filename
 // Filename format expected: Brand_Name_Of_Perfume.jpg
-// Special cases: Maison_Alhambra, Al_Haramain, French_Avenue have underscores in brand name
 const parseProductFromFilename = (filename: string, defaultPrice: number = 35, defaultGender: string = 'Unisex', defaultTags: string[] = ['importado', 'exclusivo']) => {
   const nameWithoutExt = filename.replace('.jpg', '');
   let brand = '';
@@ -36,7 +35,7 @@ const parseProductFromFilename = (filename: string, defaultPrice: number = 35, d
   } else if (nameWithoutExt.startsWith('French_Avenue')) {
     brand = 'French Avenue';
     name = nameWithoutExt.replace('French_Avenue_', '').replace(/_/g, ' ');
-  } else if (nameWithoutExt.startsWith('Club_De_Nuit')) { // Armaf sometimes starts with Club
+  } else if (nameWithoutExt.startsWith('Club_De_Nuit')) { 
     brand = 'Armaf';
     name = nameWithoutExt.replace(/_/g, ' ');
   } else {
@@ -58,17 +57,19 @@ const parseProductFromFilename = (filename: string, defaultPrice: number = 35, d
     genero: gender,
     precio_usd: defaultPrice,
     tags_olfativos: defaultTags,
-    imageFile: filename
+    imageFile: filename,
+    stock: 10 // STOCK POR DEFECTO PARA TODOS LOS PRODUCTOS
   };
 };
 
-// Existing detailed data for Lattafa (preserved)
+// PARA CARGAR CANTIDADES (STOCK):
+// Agrega la propiedad 'stock' en este objeto. Si pones stock: 0, saldrá como AGOTADO.
 const LATTAFA_DATA: Record<string, Partial<Product>> = {
-  "Lattafa_Ajwad.jpg": { precio_usd: 18, genero: "Unisex", tags_olfativos: ["oriental", "amaderado", "dulce", "vainilla"] },
+  "Lattafa_Ajwad.jpg": { precio_usd: 18, genero: "Unisex", tags_olfativos: ["oriental", "amaderado", "dulce", "vainilla"], stock: 15 },
   "Lattafa_Al_Qiam_Gold.jpg": { precio_usd: 24, genero: "Hombre", tags_olfativos: ["ambarado", "amaderado", "especiado"] },
   "Lattafa_Angham.jpg": { precio_usd: 26, genero: "Unisex", tags_olfativos: ["dulce", "afrutado", "almizcle"] },
-  "Lattafa_Art_Of_Universe_Pride.jpg": { precio_usd: 37, genero: "Unisex", tags_olfativos: ["oriental", "amaderado", "floral"] },
-  "Lattafa_Asad.jpg": { precio_usd: 24, genero: "Hombre", tags_olfativos: ["especiado", "vainilla", "amaderado"] },
+  "Lattafa_Art_Of_Universe_Pride.jpg": { precio_usd: 37, genero: "Unisex", tags_olfativos: ["oriental", "amaderado", "floral"], stock: 2 }, // Pocas unidades ejemplo
+  "Lattafa_Asad.jpg": { precio_usd: 24, genero: "Hombre", tags_olfativos: ["especiado", "vainilla", "amaderado"], stock: 50 },
   "Lattafa_Asad_Bourbon.jpg": { precio_usd: 30, genero: "Hombre", tags_olfativos: ["ambarado", "vainilla", "especiado"] },
   "Lattafa_Asad_Elixir.jpg": { precio_usd: 35, genero: "Hombre", tags_olfativos: ["oriental", "especiado", "amaderado"] },
   "Lattafa_Asad_Zanzibar.jpg": { precio_usd: 20, genero: "Hombre", tags_olfativos: ["oriental", "amaderado", "especiado"] },
@@ -84,7 +85,7 @@ const LATTAFA_DATA: Record<string, Partial<Product>> = {
   "Lattafa_Fakhar_Gold_Extract.jpg": { precio_usd: 23, genero: "Unisex", tags_olfativos: ["dulce", "oriental", "amaderado"] },
   "Lattafa_Fakhar_Platin.jpg": { precio_usd: 24, genero: "Hombre", tags_olfativos: ["amaderado", "especiado", "fresco"] },
   "Lattafa_Haya_Women.jpg": { precio_usd: 24, genero: "Mujer", tags_olfativos: ["floral", "afrutado", "dulce"] },
-  "Lattafa_Khamrah.jpg": { precio_usd: 23, genero: "Unisex", tags_olfativos: ["gourmand", "vainilla", "canela"] },
+  "Lattafa_Khamrah.jpg": { precio_usd: 23, genero: "Unisex", tags_olfativos: ["gourmand", "vainilla", "canela"], stock: 0 }, // EJEMPLO AGOTADO
   "Lattafa_Khamrah_Dukhan.jpg": { precio_usd: 21, genero: "Unisex", tags_olfativos: ["ahumado", "especiado", "oriental"] },
   "Lattafa_Khamrah_Qahwa.jpg": { precio_usd: 26, genero: "Unisex", tags_olfativos: ["cafe", "vainilla", "gourmand"] },
   "Lattafa_Mayar.jpg": { precio_usd: 26, genero: "Mujer", tags_olfativos: ["floral", "afrutado", "dulce"] },
@@ -105,6 +106,7 @@ const LATTAFA_DATA: Record<string, Partial<Product>> = {
   "Lattafa_Yara_Tous.jpg": { precio_usd: 24, genero: "Mujer", tags_olfativos: ["floral", "afrutado", "dulce"] },
 };
 
+// PARA AGREGAR PRODUCTOS: Añade el nombre del archivo aquí
 const FILES_LIST = [
   "Afnan_9_AM_Dive.jpg",
   "Afnan_9_AM_Yellow.jpg",

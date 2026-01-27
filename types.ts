@@ -7,6 +7,7 @@ export interface Product {
   precio_usd: number;
   tags_olfativos: string[];
   image?: string;
+  stock: number; // Added stock management
 }
 
 export interface CartItem extends Product {

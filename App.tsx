@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2 } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3 } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -14,6 +14,8 @@ interface AlertData {
 }
 
 interface AppContextType {
+  products: Product[]; // Moved to state
+  updateProduct: (id: string, updates: Partial<Product>) => void; // Admin edit function
   cart: CartItem[];
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
@@ -23,7 +25,8 @@ interface AppContextType {
   orders: Order[];
   addOrder: (order: Order) => void;
   isAdmin: boolean;
-  loginAdmin: (pass: string) => boolean;
+  loginAdmin: (email: string, pass: string) => boolean;
+  logoutAdmin: () => void;
   dolarBlue: number;
   formatPrice: (usd: number) => string;
   // Filter State
@@ -74,6 +77,9 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // PRODUCTS STATE (Now mutable for Admin)
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -88,8 +94,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [filterGender, setFilterGender] = useState<string>('Para Todos');
   const [sortPrice, setSortPrice] = useState<'none' | 'asc' | 'desc'>('none');
 
-  const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(PRODUCTS.map(p => p.marca)))], []);
-  const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(PRODUCTS.map(p => p.genero)))], []);
+  // Derived from current Products state (in case admin adds brands)
+  const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(products.map(p => p.marca)))], [products]);
+  const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(products.map(p => p.genero)))], [products]);
 
   useEffect(() => {
     const fetchDolar = async () => {
@@ -111,10 +118,26 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
   };
 
+  // Admin: Update Product Logic
+  const updateProduct = (id: string, updates: Partial<Product>) => {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
   const addToCart = (product: Product) => {
+    if (product.stock <= 0) {
+       showAlert("Perkins dice:", `Lo lamento profundamente, pero ${product.nombre} se encuentra actualmente agotado debido a su alta demanda.`, 'error');
+       return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        // Check stock limit
+        if (existing.quantity >= product.stock) {
+           showAlert("Perkins dice:", `Disculpe, solo disponemos de ${product.stock} unidades de esta fragancia.`, 'info');
+           return prev;
+        }
+        // Check max limit 4
         if (existing.quantity >= 4) {
           showAlert("Perkins dice:", "Lo siento, permitimos un máximo de 4 unidades por fragancia para mantener la exclusividad.", 'error');
           return prev;
@@ -136,13 +159,16 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setOrders(prev => [order, ...prev]);
   };
 
-  const loginAdmin = (pass: string) => {
-    if (pass === 'COCAcola69') {
+  const loginAdmin = (email: string, pass: string) => {
+    // HARDCODED CREDENTIALS AS REQUESTED
+    if (email === 'diegomagia.onlie@gmail.com' && pass === 'Ak47iddqd-') {
       setIsAdmin(true);
       return true;
     }
     return false;
   };
+
+  const logoutAdmin = () => setIsAdmin(false);
 
   const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setAlertData({ isOpen: true, title, message, type });
@@ -154,7 +180,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <AppContext.Provider value={{ 
-      cart, addToCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, isAdmin, loginAdmin, dolarBlue, formatPrice,
+      products, updateProduct,
+      cart, addToCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, isAdmin, loginAdmin, logoutAdmin, dolarBlue, formatPrice,
       filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders,
       showAlert, closeAlert
     }}>
@@ -374,6 +401,7 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
   const [imgError, setImgError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const isOutOfStock = product.stock <= 0;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -406,7 +434,7 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
         isVisible 
           ? 'opacity-100 translate-y-0' 
           : 'opacity-0 translate-y-20'
-      }`}
+      } ${isOutOfStock ? 'opacity-60' : ''}`}
     >
       {/* Thumbnail */}
       <div className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 bg-neutral-900 rounded-md overflow-hidden border border-neutral-800 group-hover:border-gold-500/50 transition-colors relative">
@@ -416,7 +444,7 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
              alt={product.nombre} 
              loading="lazy"
              onError={() => setImgError(true)}
-             className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+             className={`w-full h-full object-cover transition-opacity ${isOutOfStock ? 'grayscale opacity-50' : 'opacity-90 group-hover:opacity-100'}`}
            />
         ) : (
            <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900">
@@ -429,11 +457,20 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
       <div className="flex-1 min-w-0 flex flex-col justify-center">
         <div className="flex justify-between items-start">
            <div>
-             <h3 className="text-base sm:text-lg font-serif text-white group-hover:text-gold-400 transition-colors truncate">{product.nombre}</h3>
-             <div className="flex items-center gap-2">
+             <h3 className={`text-base sm:text-lg font-serif transition-colors truncate ${isOutOfStock ? 'text-gray-500 line-through' : 'text-white group-hover:text-gold-400'}`}>
+                {product.nombre}
+             </h3>
+             <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-gold-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider">{product.marca}</span>
                 <span className="text-gray-500 text-[10px] sm:text-xs">• {product.presentacion_ml} ML</span>
                 <span className="text-gray-400 text-[10px] sm:text-xs border border-gray-700 rounded px-1">{product.genero}</span>
+                
+                {/* Stock Badges */}
+                {isOutOfStock ? (
+                    <span className="bg-red-900/50 text-red-200 border border-red-800 text-[9px] px-1 rounded font-bold uppercase">Agotado</span>
+                ) : (
+                    product.stock < 3 && <span className="text-yellow-500 text-[9px] font-bold animate-pulse">¡Últimas {product.stock}!</span>
+                )}
              </div>
            </div>
            <div className="text-right sm:hidden">
@@ -452,7 +489,7 @@ const ProductListItem: React.FC<{ product: Product; onClick: () => void }> = ({ 
       <div className="hidden sm:flex flex-col items-end gap-1 ml-2">
         <span className="text-gold-500 font-bold text-lg">{formatPrice(product.precio_usd)}</span>
         <button className="text-[10px] uppercase tracking-widest text-gray-400 border border-gray-600 px-2 py-0.5 rounded hover:border-gold-500 hover:text-gold-500 transition-all whitespace-nowrap">
-          Ver +
+          {isOutOfStock ? 'Ver Detalle' : 'Ver +'}
         </button>
       </div>
       
@@ -489,6 +526,8 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void }> =
     handleClose();
   };
 
+  const isOutOfStock = product.stock <= 0;
+
   return (
     <div className={`fixed inset-0 z-[60] flex items-center justify-center px-4 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`}>
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={handleClose} />
@@ -504,13 +543,18 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void }> =
               src={product.image} 
               alt={product.nombre} 
               onError={() => setImgError(true)}
-              className="w-full h-full object-cover" 
+              className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale' : ''}`}
             />
           ) : (
             <div className="text-center p-8">
                <ImageOff size={48} className="text-gold-500 mx-auto mb-2 opacity-50"/>
                <p className="text-gray-500 text-xs">Imagen no disponible</p>
             </div>
+          )}
+          {isOutOfStock && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="bg-red-600 text-white font-bold px-4 py-2 text-xl border-2 border-white -rotate-12 shadow-lg">AGOTADO</span>
+              </div>
           )}
         </div>
 
@@ -535,15 +579,36 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void }> =
               </div>
             </div>
             
-            <div className="text-3xl font-bold text-white mb-6">{formatPrice(product.precio_usd)}</div>
+            <div className="flex justify-between items-center mb-6">
+                <div className="text-3xl font-bold text-white">{formatPrice(product.precio_usd)}</div>
+                {!isOutOfStock && product.stock < 5 && (
+                    <span className="text-yellow-500 text-xs font-bold border border-yellow-700/50 px-2 py-1 rounded bg-yellow-900/20">
+                        Solo quedan {product.stock}
+                    </span>
+                )}
+            </div>
           </div>
 
           <button 
             onClick={handleAddToCart}
-            className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-4 px-6 rounded-lg uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+            disabled={isOutOfStock}
+            className={`w-full font-bold py-4 px-6 rounded-lg uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${
+                isOutOfStock 
+                ? 'bg-neutral-800 text-gray-500 cursor-not-allowed border border-neutral-700' 
+                : 'bg-gold-600 hover:bg-gold-500 text-black'
+            }`}
           >
-            <ShoppingBag size={20} />
-            Agregar al Carrito
+            {isOutOfStock ? (
+                <>
+                    <PackageX size={20} />
+                    Sin Stock
+                </>
+            ) : (
+                <>
+                    <ShoppingBag size={20} />
+                    Agregar al Carrito
+                </>
+            )}
           </button>
         </div>
       </div>
@@ -966,7 +1031,7 @@ const CartDrawer: React.FC = () => {
 
 // --- CHAT MESSAGE PARSER FOR IMAGES ---
 const ChatMessageRenderer: React.FC<{ text: string, role: ChatRole }> = ({ text, role }) => {
-  const { addToCart, formatPrice } = useStore();
+  const { products, addToCart, formatPrice } = useStore();
   
   // Regex to find perfume names in brackets e.g. [Ajwad]
   const parts = text.split(/\[(.*?)\]/g);
@@ -980,7 +1045,7 @@ const ChatMessageRenderer: React.FC<{ text: string, role: ChatRole }> = ({ text,
       {parts.map((part, i) => {
         // If it's an odd index, it was inside brackets (matches product name)
         if (i % 2 === 1) {
-          const product = PRODUCTS.find(p => p.nombre.toLowerCase() === part.toLowerCase());
+          const product = products.find(p => p.nombre.toLowerCase() === part.toLowerCase());
           if (product) {
             return (
               <div key={i} className="my-2 bg-black border border-gold-600/30 rounded-lg overflow-hidden flex flex-col">
@@ -1170,11 +1235,11 @@ const Catalog: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   // Filtering States from Context
-  const { filterBrand, filterGender, sortPrice, setFilterBrand, setFilterGender } = useStore();
+  const { products, filterBrand, filterGender, sortPrice, setFilterBrand, setFilterGender } = useStore();
 
   // Filter Logic
   const filteredProducts = useMemo(() => {
-    let result = PRODUCTS;
+    let result = products;
 
     if (filterBrand !== 'Fabricante') {
       result = result.filter(p => p.marca === filterBrand);
@@ -1190,7 +1255,7 @@ const Catalog: React.FC = () => {
     }
 
     return result;
-  }, [filterBrand, filterGender, sortPrice]);
+  }, [products, filterBrand, filterGender, sortPrice]);
 
   return (
     <div className="min-h-screen bg-luxury-black pb-20">
@@ -1230,30 +1295,58 @@ const Catalog: React.FC = () => {
 };
 
 const AdminPanel: React.FC = () => {
-  const { orders, isAdmin, loginAdmin, formatPrice } = useStore();
+  const { orders, isAdmin, loginAdmin, logoutAdmin, formatPrice, products, updateProduct } = useStore();
+  const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [error, setError] = useState(false);
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory'>('orders');
+  const [searchTerm, setSearchTerm] = useState('');
   const isApiConfigured = isApiKeyConfigured();
+
+  // Filter products for inventory search
+  const filteredInventory = products.filter(p => 
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.marca.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-neutral-900 flex items-center justify-center p-4">
-        <div className="bg-black p-8 rounded-xl border border-gold-600/30 w-full max-w-md text-center">
-          <User className="w-16 h-16 text-gold-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-serif text-white mb-6">Acceso Administrativo</h2>
-          <input 
-            type="password" 
-            value={pass}
-            onChange={(e) => { setPass(e.target.value); setError(false); }}
-            placeholder="Clave de acceso"
-            className="w-full bg-neutral-800 border border-neutral-700 p-3 rounded mb-4 text-white focus:border-gold-500 outline-none"
-          />
-          {error && <p className="text-red-500 text-sm mb-4">Clave incorrecta</p>}
+        <div className="bg-black p-8 rounded-xl border border-gold-600/30 w-full max-w-md text-center shadow-[0_0_50px_rgba(212,175,55,0.1)]">
+          <div className="w-20 h-20 bg-neutral-900 rounded-full flex items-center justify-center mx-auto mb-6 border border-gold-500/30">
+            <User className="w-10 h-10 text-gold-500" />
+          </div>
+          <h2 className="text-3xl font-serif text-white mb-2">Perkins Admin</h2>
+          <p className="text-gray-500 text-sm mb-8">Acceso exclusivo para gestión.</p>
+          
+          <div className="space-y-4">
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(false); }}
+              placeholder="Email Administrativo"
+              className="w-full bg-neutral-900 border border-neutral-700 p-4 rounded-lg text-white focus:border-gold-500 outline-none transition-colors"
+            />
+            <input 
+              type="password" 
+              value={pass}
+              onChange={(e) => { setPass(e.target.value); setError(false); }}
+              placeholder="Contraseña"
+              className="w-full bg-neutral-900 border border-neutral-700 p-4 rounded-lg text-white focus:border-gold-500 outline-none transition-colors"
+            />
+          </div>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded text-red-400 text-sm flex items-center gap-2 justify-center">
+              <AlertTriangle size={16} /> Credenciales inválidas
+            </div>
+          )}
+
           <button 
-            onClick={() => { if (!loginAdmin(pass)) setError(true); }}
-            className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded uppercase"
+            onClick={() => { if (!loginAdmin(email, pass)) setError(true); }}
+            className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-4 rounded-lg uppercase tracking-widest mt-6 transition-colors shadow-lg hover:shadow-gold-500/20"
           >
-            Ingresar
+            Acceder al Sistema
           </button>
         </div>
       </div>
@@ -1261,69 +1354,205 @@ const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-gray-200 p-6">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+    <div className="min-h-screen bg-neutral-900 text-gray-200 flex">
+      {/* Sidebar */}
+      <aside className="w-64 bg-black border-r border-neutral-800 flex-shrink-0 flex flex-col fixed h-full z-20 md:relative">
+        <div className="p-6 border-b border-neutral-800">
+           <h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1>
+           <span className="text-xs text-gray-500 uppercase tracking-widest">Backend</span>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-2">
+          <button 
+            onClick={() => setActiveTab('orders')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'orders' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}
+          >
+            <ClipboardList size={20} />
+            <span className="font-medium">Pedidos</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('inventory')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}
+          >
+            <Box size={20} />
+            <span className="font-medium">Inventario</span>
+          </button>
+        </nav>
+
+        <div className="p-4 border-t border-neutral-800">
+          <button onClick={logoutAdmin} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors">
+            <LogOut size={16} /> Cerrar Sesión
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 p-8 ml-64 md:ml-0 overflow-y-auto">
+        
+        {/* Top Bar */}
+        <header className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-serif text-gold-500">Panel de Control de Pedidos</h1>
+            <h2 className="text-2xl font-bold text-white mb-1">
+              {activeTab === 'orders' ? 'Gestión de Pedidos' : 'Control de Stock'}
+            </h2>
             {!isApiConfigured && (
-               <div className="flex items-center gap-2 text-red-400 mt-2 bg-red-900/20 px-3 py-1 rounded border border-red-900/50">
-                  <AlertTriangle size={16} />
-                  <span className="text-xs font-bold">ALERTA: API Key no detectada. Mr. Perkins no funcionará. Configura 'VITE_API_KEY' en Vercel.</span>
+               <div className="flex items-center gap-2 text-red-400 text-xs mt-1">
+                  <AlertTriangle size={12} />
+                  <span>API Key de IA no detectada.</span>
                </div>
             )}
-            {isApiConfigured && (
-              <div className="flex items-center gap-2 text-green-400 mt-2">
-                 <CheckCircle size={16} />
-                 <span className="text-xs">Sistema Mr. Perkins Operativo</span>
-              </div>
-            )}
+            {isApiConfigured && <span className="text-green-500 text-xs flex items-center gap-1"><CheckCircle size={12}/> Sistema IA Operativo</span>}
           </div>
-          <div className="text-sm bg-gold-900/30 px-4 py-2 rounded-full border border-gold-700/50">
-            {orders.length} pedidos totales
+          <div className="text-sm text-gray-500">
+            Admin: {email}
           </div>
         </header>
 
-        <div className="grid gap-6">
-          {orders.length === 0 ? (
-            <div className="text-center py-20 bg-black rounded-xl border border-neutral-800">
-               <p className="text-gray-500">No hay pedidos registrados aún.</p>
+        {/* ORDERS TAB */}
+        {activeTab === 'orders' && (
+          <div className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-black border border-neutral-800 p-4 rounded-lg">
+                   <h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Total Pedidos</h3>
+                   <span className="text-3xl font-serif text-white">{orders.length}</span>
+                </div>
+                <div className="bg-black border border-neutral-800 p-4 rounded-lg">
+                   <h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Pendientes</h3>
+                   <span className="text-3xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span>
+                </div>
+                <div className="bg-black border border-neutral-800 p-4 rounded-lg">
+                   <h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Ingresos Estimados</h3>
+                   <span className="text-3xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span>
+                </div>
+             </div>
+
+             <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden">
+                {orders.length === 0 ? (
+                  <div className="p-12 text-center text-gray-500">
+                    <ClipboardList size={48} className="mx-auto mb-4 opacity-20" />
+                    <p>No hay pedidos registrados.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-neutral-800">
+                    {orders.map(order => (
+                      <div key={order.id} className="p-6 hover:bg-neutral-900/50 transition-colors">
+                        <div className="flex flex-col md:flex-row justify-between mb-4">
+                           <div>
+                              <div className="flex items-center gap-3 mb-1">
+                                <span className="text-gold-500 font-bold">{order.id}</span>
+                                <span className="bg-yellow-900/30 text-yellow-500 text-xs px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span>
+                              </div>
+                              <h4 className="text-white font-medium">{order.customerName}</h4>
+                              <p className="text-sm text-gray-400">{order.address}</p>
+                           </div>
+                           <div className="text-right mt-2 md:mt-0">
+                              <div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div>
+                              <div className="text-xs text-gray-500">{order.deliveryDate}</div>
+                           </div>
+                        </div>
+                        <div className="bg-neutral-900/50 rounded p-3 text-sm">
+                           <ul className="space-y-1">
+                             {order.items.map((item, idx) => (
+                               <li key={idx} className="flex justify-between text-gray-300">
+                                 <span>{item.quantity}x {item.nombre}</span>
+                                 <span>{formatPrice(item.precio_usd * item.quantity)}</span>
+                               </li>
+                             ))}
+                           </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+             </div>
+          </div>
+        )}
+
+        {/* INVENTORY TAB */}
+        {activeTab === 'inventory' && (
+          <div className="space-y-6">
+            <div className="bg-neutral-800/50 border border-neutral-700 p-4 rounded-lg text-sm text-yellow-200/80 flex items-start gap-3">
+               <AlertTriangle className="flex-shrink-0 mt-0.5" size={16} />
+               <p>
+                 <strong>Nota del Sistema:</strong> Los cambios realizados aquí se reflejan instantáneamente en el catálogo público ("Frontend"), pero 
+                 al no tener una base de datos persistente conectada, los cambios se perderán si recargas la página completa.
+               </p>
             </div>
-          ) : (
-            orders.map(order => (
-              <div key={order.id} className="bg-black border border-neutral-800 p-6 rounded-xl flex flex-col md:flex-row gap-6 justify-between items-start hover:border-gold-600/30 transition-colors">
-                <div>
-                   <div className="flex items-center gap-3 mb-2">
-                     <span className="text-gold-500 font-bold text-lg">{order.id}</span>
-                     <span className={`text-xs px-2 py-1 rounded capitalize ${order.status === 'pending' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-green-900/50 text-green-200'}`}>
-                       {order.status}
-                     </span>
-                   </div>
-                   <p className="text-white font-medium mb-1">{order.customerName}</p>
-                   <p className="text-sm text-gray-400 mb-1">{order.address}</p>
-                   <p className="text-sm text-gray-500">Entrega: {order.deliveryDate}</p>
-                   <p className="text-xs text-gray-600 mt-2">{new Date(order.timestamp).toLocaleString()}</p>
-                </div>
-                
-                <div className="w-full md:w-auto">
-                   <h4 className="text-sm text-gray-400 mb-2 border-b border-neutral-800 pb-1">Items</h4>
-                   <ul className="space-y-1 mb-4">
-                     {order.items.map((item, idx) => (
-                       <li key={idx} className="text-sm flex justify-between gap-8">
-                         <span>{item.quantity}x {item.nombre}</span>
-                         <span className="text-gray-400">{formatPrice(item.precio_usd * item.quantity)}</span>
-                       </li>
-                     ))}
-                   </ul>
-                   <div className="text-right border-t border-neutral-800 pt-2">
-                     <span className="text-gold-500 font-bold text-xl">{formatPrice(order.total + 5)}</span>
-                   </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+
+            <div className="flex items-center bg-black border border-neutral-800 rounded-lg px-4 py-3 mb-6">
+               <Search className="text-gray-500 mr-2" size={20} />
+               <input 
+                 type="text" 
+                 placeholder="Buscar por nombre o marca..." 
+                 className="bg-transparent border-none outline-none text-white w-full placeholder-gray-600"
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+               />
+            </div>
+
+            <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden">
+               <table className="w-full text-left text-sm">
+                 <thead className="bg-neutral-900 text-gray-400 uppercase tracking-wider text-xs font-medium">
+                   <tr>
+                     <th className="p-4">Producto</th>
+                     <th className="p-4 text-center">Precio (USD)</th>
+                     <th className="p-4 text-center">Stock</th>
+                     <th className="p-4 text-center">Estado</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-neutral-800">
+                   {filteredInventory.map(product => (
+                     <tr key={product.id} className="hover:bg-neutral-900/30 transition-colors group">
+                       <td className="p-4">
+                         <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded bg-neutral-800 overflow-hidden flex-shrink-0">
+                             <img src={product.image} alt="" className="w-full h-full object-cover" />
+                           </div>
+                           <div>
+                             <div className="text-white font-medium">{product.nombre}</div>
+                             <div className="text-gray-500 text-xs">{product.marca}</div>
+                           </div>
+                         </div>
+                       </td>
+                       <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                             <span className="text-gray-500">$</span>
+                             <input 
+                                type="number" 
+                                value={product.precio_usd}
+                                onChange={(e) => updateProduct(product.id, { precio_usd: Number(e.target.value) })}
+                                className="w-16 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-center text-white focus:border-gold-500 outline-none"
+                             />
+                          </div>
+                       </td>
+                       <td className="p-4 text-center">
+                          <input 
+                              type="number" 
+                              value={product.stock}
+                              onChange={(e) => updateProduct(product.id, { stock: Number(e.target.value) })}
+                              className={`w-16 bg-neutral-900 border rounded px-2 py-1 text-center font-bold outline-none focus:border-gold-500 ${product.stock === 0 ? 'border-red-900 text-red-500' : 'border-neutral-700 text-white'}`}
+                           />
+                       </td>
+                       <td className="p-4 text-center">
+                         {product.stock === 0 ? (
+                           <span className="bg-red-900/30 text-red-500 px-2 py-1 rounded text-xs uppercase font-bold border border-red-900/50">Agotado</span>
+                         ) : product.stock < 5 ? (
+                            <span className="bg-yellow-900/30 text-yellow-500 px-2 py-1 rounded text-xs uppercase font-bold border border-yellow-900/50">Bajo</span>
+                         ) : (
+                            <span className="bg-green-900/30 text-green-500 px-2 py-1 rounded text-xs uppercase font-bold border border-green-900/50">OK</span>
+                         )}
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+               {filteredInventory.length === 0 && (
+                 <div className="p-8 text-center text-gray-500">No se encontraron productos.</div>
+               )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
