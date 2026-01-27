@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
-import { HashRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { ShoppingBag, X, Download, Truck, User, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3 } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole } from './types';
