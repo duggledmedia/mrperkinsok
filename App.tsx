@@ -58,16 +58,13 @@ interface AppContextType {
   isAdmin: boolean;
 
   dolarBlue: number;
-  setDolarBlue: (val: number) => void; // Allow manual override
+  setDolarBlue: (val: number) => void;
   formatPrice: (ars: number) => string;
-  calculateFinalPriceARS: (product: Product) => number; // Returns ARS directly
-  // Pricing Mode
+  calculateFinalPriceARS: (product: Product) => number;
   pricingMode: 'retail' | 'wholesale';
   setPricingMode: (mode: 'retail' | 'wholesale') => void;
-  // View Mode
   viewMode: 'grid' | 'list';
   setViewMode: (mode: 'grid' | 'list') => void;
-  // Filter State
   filterBrand: string;
   setFilterBrand: (v: string) => void;
   filterGender: string;
@@ -76,7 +73,6 @@ interface AppContextType {
   setSortPrice: (v: 'none' | 'asc' | 'desc') => void;
   availableBrands: string[];
   availableGenders: string[];
-  // Custom Alert System
   showAlert: (title: string, message: string, type?: 'success' | 'error' | 'info') => void;
   closeAlert: () => void;
 }
@@ -91,63 +87,43 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-luxury-card w-full max-w-sm rounded-2xl border border-gold-600/50 shadow-[0_0_30px_rgba(212,175,55,0.2)] overflow-hidden flex flex-col items-center text-center p-6 animate-slide-up">
-        
-        {/* Header Icon */}
         <div className="w-20 h-20 rounded-full border-2 border-gold-500 overflow-hidden shadow-lg mb-4 bg-black">
              <img src={PERKINS_IMAGES.EXCELENTE} className="w-full h-full object-cover" alt="Perkins" />
         </div>
-
         <h3 className="text-xl font-serif text-gold-500 mb-2 font-bold">{data.title}</h3>
-        
-        <div className="text-gray-300 text-sm mb-6 whitespace-pre-line leading-relaxed">
-          {data.message}
-        </div>
-
-        <button 
-          onClick={onClose}
-          className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg uppercase tracking-widest transition-colors"
-        >
-          Entendido
-        </button>
+        <div className="text-gray-300 text-sm mb-6 whitespace-pre-line leading-relaxed">{data.message}</div>
+        <button onClick={onClose} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded-lg uppercase tracking-widest transition-colors">Entendido</button>
       </div>
     </div>
   );
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializamos con los productos base, pero la verdad vendrá del useEffect
   const [products, setProducts] = useState<Product[]>(PRODUCTS.map(p => ({
       ...p,
       margin_retail: 50,
       margin_wholesale: 15
   })));
 
-  // SYNC: Cargar overrides y nuevos productos desde el servidor
   useEffect(() => {
     const fetchUpdates = async () => {
       try {
         const response = await fetch('/api/products');
         if (response.ok) {
           const overrides = await response.json();
-          
-          // 1. Crear Mapa con productos base (constantes)
           const productMap = new Map<string, Product>();
           PRODUCTS.forEach(p => {
              productMap.set(p.id, { ...p, margin_retail: 50, margin_wholesale: 15 });
           });
 
-          // 2. Aplicar overrides del servidor (incluye nuevos y borrados)
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
               if (data.deleted) {
                   productMap.delete(id);
               } else {
                   const existing = productMap.get(id);
                   if (existing) {
-                      // Actualizar existente
                       productMap.set(id, { ...existing, ...data });
                   } else {
-                      // Es un producto nuevo creado en admin
-                      // Aseguramos que tenga estructura mínima
                       productMap.set(id, { 
                           id, 
                           nombre: 'Nuevo Producto',
@@ -165,7 +141,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   }
               }
           });
-
           setProducts(Array.from(productMap.values()));
         }
       } catch (error) {
@@ -174,25 +149,19 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     fetchUpdates();
-    const interval = setInterval(fetchUpdates, 4000); // Polling un poco más lento
+    const interval = setInterval(fetchUpdates, 4000); 
     return () => clearInterval(interval);
   }, []);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
-  
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-  // DOLAR BLUE
   const [dolarBlue, setDolarBlue] = useState(1220); 
-  
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [alertData, setAlertData] = useState<AlertData>({ isOpen: false, title: '', message: '', type: 'info' });
-
-  // Filters
   const [filterBrand, setFilterBrand] = useState<string>('Fabricante');
   const [filterGender, setFilterGender] = useState<string>('Para Todos');
   const [sortPrice, setSortPrice] = useState<'none' | 'asc' | 'desc'>('none');
@@ -205,30 +174,19 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       try {
         const response = await fetch('https://dolarapi.com/v1/dolares/blue');
         const data = await response.json();
-        if (data && data.venta) {
-          setDolarBlue(data.venta);
-        }
-      } catch (e) {
-        console.error("Error fetching dolar blue", e);
-      }
+        if (data && data.venta) setDolarBlue(data.venta);
+      } catch (e) { console.error(e); }
     };
     fetchDolar();
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    const margin = pricingMode === 'wholesale' 
-      ? (product.margin_wholesale ?? 15)
-      : (product.margin_retail ?? 50);
-    
+    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale ?? 15) : (product.margin_retail ?? 50);
     const costoEnPesos = product.precio_usd * dolarBlue;
-    const precioFinal = costoEnPesos * (1 + margin / 100);
-    
-    return Math.ceil(precioFinal);
+    return Math.ceil(costoEnPesos * (1 + margin / 100));
   };
 
-  const formatPrice = (ars: number) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
-  };
+  const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
 
   const persistUpdate = async (id: string, updates: Partial<Product> | { deleted: boolean }) => {
       try {
@@ -238,7 +196,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           body: JSON.stringify({ id, updates })
         });
       } catch (e) {
-        console.error("Failed to persist product update", e);
+        console.error("Failed to persist", e);
         showAlert("Error de Conexión", "No se pudo guardar en el servidor.", "error");
       }
   };
@@ -255,25 +213,15 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const addNewProduct = (product: Product) => {
       setProducts(prev => [...prev, product]);
-      // Remove id from object spread to avoid duplication if needed, but here we need to send the whole object as "updates" for a new key
-      // The API handler merges updates into existing or new keys.
-      // We pass the whole product object minus the ID as the updates, and the ID as ID.
       const { id, ...rest } = product;
       persistUpdate(id, rest);
   };
 
   const bulkUpdateMargins = async (type: 'retail' | 'wholesale', value: number) => {
     const key = type === 'retail' ? 'margin_retail' : 'margin_wholesale';
-    const newProducts = products.map(p => ({
-      ...p,
-      [key]: value
-    }));
+    const newProducts = products.map(p => ({ ...p, [key]: value }));
     setProducts(newProducts);
-
-    const updatesArray = newProducts.map(p => ({
-      id: p.id,
-      updates: { [key]: value }
-    }));
+    const updatesArray = newProducts.map(p => ({ id: p.id, updates: { [key]: value } }));
 
     try {
         await fetch('/api/bulk-update', {
@@ -281,26 +229,20 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ updatesArray })
         });
-        showAlert("Actualización Masiva Exitosa", `Se ha actualizado el margen ${type === 'retail' ? 'minorista' : 'mayorista'} al ${value}% para todos los productos.`, 'success');
+        showAlert("Actualización Exitosa", `Margen actualizado a ${value}%`, 'success');
     } catch (error) {
         showAlert("Error", "Falló la actualización masiva.", "error");
     }
   };
 
-  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setAlertData({ isOpen: true, title, message, type });
-  };
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => setAlertData({ isOpen: true, title, message, type });
 
   const addToCart = (product: Product, quantity: number = 1, silent: boolean = false) => {
-    if (product.stock <= 0) {
-       showAlert("Perkins dice:", `Lo lamento profundamente, pero ${product.nombre} se encuentra actualmente agotado.`, 'error');
-       return;
-    }
+    if (product.stock <= 0) { showAlert("Perkins dice:", `Lo lamento, ${product.nombre} está agotado.`, 'error'); return; }
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
-      const currentQty = existing ? existing.quantity : 0;
-      if (currentQty + quantity > product.stock) {
-         if(!silent) showAlert("Perkins dice:", `Disculpe, stock insuficiente.`, 'info');
+      if ((existing ? existing.quantity : 0) + quantity > product.stock) {
+         if(!silent) showAlert("Perkins dice:", `Stock insuficiente.`, 'info');
          return prev;
       }
       if (existing) return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item);
@@ -327,10 +269,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const login = (email: string, pass: string): boolean => {
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.pass === pass);
     if (user) {
-      if (!user.active) {
-         showAlert("Cuenta Inactiva", "Esta cuenta aún no ha sido confirmada.", "error");
-         return false;
-      }
+      if (!user.active) { showAlert("Cuenta Inactiva", "Confirme su email.", "error"); return false; }
       setCurrentUser(user);
       return true;
     }
@@ -371,31 +310,18 @@ const Footer = () => (
   <footer className="bg-black border-t border-neutral-800 py-8 mt-12 relative z-10 pb-24">
     <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500 font-serif">
       <div className="tracking-widest uppercase text-center md:text-left">Mr Perkins 2026 (c) Todos los derechos reservados.</div>
-      <div className="tracking-wider text-center md:text-right">
-        Diseñado y Programado por <a href="https://www.duggled.com.ar" target="_blank" rel="noopener noreferrer" className="text-gold-600 hover:text-gold-400 transition-colors font-bold">Duggled Media Design</a>
-      </div>
+      <div className="tracking-wider text-center md:text-right">Diseñado y Programado por <a href="#" className="text-gold-600 font-bold">Duggled Media Design</a></div>
     </div>
   </footer>
 );
 
 const FloatingPricingBar: React.FC = () => {
   const { pricingMode, setPricingMode } = useStore();
-  
   return (
     <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
       <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-full p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-1">
-        <button 
-          onClick={() => setPricingMode('retail')}
-          className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'text-gray-400 hover:text-white'}`}
-        >
-          Minorista
-        </button>
-        <button 
-          onClick={() => setPricingMode('wholesale')}
-          className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'wholesale' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-gray-400 hover:text-white'}`}
-        >
-          Mayorista
-        </button>
+        <button onClick={() => setPricingMode('retail')} className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'retail' ? 'bg-gold-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'text-gray-400 hover:text-white'}`}>Minorista</button>
+        <button onClick={() => setPricingMode('wholesale')} className={`px-5 py-2 rounded-full text-xs uppercase font-bold tracking-widest transition-all duration-500 ${pricingMode === 'wholesale' ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-gray-400 hover:text-white'}`}>Mayorista</button>
       </div>
     </div>
   );
@@ -420,31 +346,70 @@ const VideoHero = () => {
     const [textIndex, setTextIndex] = useState(0);
     const changingWords = ["Vos", "Tu Pareja", "Tu Familia"];
     useEffect(() => { const i = setInterval(() => setTextIndex(p => (p+1)%3), 3000); return () => clearInterval(i); }, []);
-    return <div className="relative h-[85vh] w-full bg-luxury-black overflow-hidden"><div className="absolute inset-0 bg-black/40 flex items-center justify-center"><h1 className="text-5xl font-serif text-gold-500">Mr. Perkins</h1></div></div>;
+    return (
+      <div className="relative h-[85vh] w-full bg-luxury-black overflow-hidden group">
+         <div className="absolute inset-0 z-0"><video className="w-full h-full object-cover opacity-90" muted autoPlay loop playsInline poster="https://xnvaqwwcfmpybhodcipl.supabase.co/storage/v1/object/public/PERKINS/Perks.webp"><source src="https://xnvaqwwcfmpybhodcipl.supabase.co/storage/v1/object/public/PERKINS/Perks.mp4" type="video/mp4" /></video><div className="absolute inset-0 bg-black/40" /></div>
+         <div className="relative z-10 h-full flex flex-col justify-center px-6 md:px-16 pointer-events-none"><div className="animate-slide-up"><span className="block text-xl md:text-3xl text-gray-200 font-serif tracking-widest uppercase mb-2 drop-shadow-md">Los mejores Perfumes...</span><div className="flex flex-col md:flex-row md:items-baseline gap-2 md:gap-4"><span className="text-4xl md:text-6xl text-gray-300 font-serif italic font-light">Para</span><span className="text-5xl md:text-8xl font-bold font-serif text-gold-500 drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">{changingWords[textIndex]}</span></div></div></div>
+      </div>
+    );
 };
 
 const ProductGridItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
   const { cart, addToCart, decreaseFromCart, calculateFinalPriceARS, formatPrice } = useStore();
   const [imgError, setImgError] = useState(false);
   const cartItem = cart.find(i => i.id === product.id);
-  const qty = cartItem ? cartItem.quantity : 0;
   const price = calculateFinalPriceARS(product);
   const isOutOfStock = product.stock <= 0;
-  return <div onClick={onClick} className={`group relative bg-neutral-900/50 rounded-lg overflow-hidden border border-neutral-800 hover:border-gold-600/50 transition-all duration-500 hover:shadow-[0_0_20px_rgba(212,175,55,0.1)] cursor-pointer flex flex-col h-full ${isOutOfStock ? 'opacity-60' : ''}`}><div className="relative aspect-square overflow-hidden bg-white/5">{!imgError ? <img src={product.image} loading="lazy" onError={() => setImgError(true)} className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-50' : ''}`}/> : <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={16} /></div>}{isOutOfStock && <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span className="text-red-500 font-bold border-2 border-red-500 px-2 py-1 text-[8px] rounded uppercase tracking-widest transform -rotate-12">Agotado</span></div>}</div><div className="p-2 flex flex-col flex-1"><div className="text-[8px] text-gray-500 uppercase tracking-wider mb-0.5 truncate">{product.marca}</div><h3 className="text-white font-medium text-[10px] md:text-xs leading-tight mb-2 group-hover:text-gold-400 transition-colors line-clamp-2 min-h-[2.5em]">{product.nombre}</h3><div className="mt-auto flex flex-col gap-1"><div className="text-gold-500 font-bold text-xs md:text-sm">{formatPrice(price)}</div><div onClick={e => e.stopPropagation()} className="w-full"><QuantityControl product={product} quantityInCart={qty} onAdd={() => addToCart(product)} onRemove={() => decreaseFromCart(product)} compact/></div></div></div></div>;
+  return <div onClick={onClick} className={`group relative bg-neutral-900/50 rounded-lg overflow-hidden border border-neutral-800 hover:border-gold-600/50 transition-all duration-500 hover:shadow-[0_0_20px_rgba(212,175,55,0.1)] cursor-pointer flex flex-col h-full ${isOutOfStock ? 'opacity-60' : ''}`}><div className="relative aspect-square overflow-hidden bg-white/5">{!imgError ? <img src={product.image} loading="lazy" onError={() => setImgError(true)} className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-50' : ''}`}/> : <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={16} /></div>}{isOutOfStock && <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10"><span className="text-red-500 font-bold border-2 border-red-500 px-2 py-1 text-[8px] rounded uppercase tracking-widest transform -rotate-12">Agotado</span></div>}</div><div className="p-2 flex flex-col flex-1"><div className="text-[8px] text-gray-500 uppercase tracking-wider mb-0.5 truncate">{product.marca}</div><h3 className="text-white font-medium text-[10px] md:text-xs leading-tight mb-2 group-hover:text-gold-400 transition-colors line-clamp-2 min-h-[2.5em]">{product.nombre}</h3><div className="mt-auto flex flex-col gap-1"><div className="text-gold-500 font-bold text-xs md:text-sm">{formatPrice(price)}</div><div onClick={e => e.stopPropagation()} className="w-full"><QuantityControl product={product} quantityInCart={cartItem?.quantity || 0} onAdd={() => addToCart(product)} onRemove={() => decreaseFromCart(product)} compact/></div></div></div></div>;
 };
 
 const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
     const { cart, addToCart, decreaseFromCart, calculateFinalPriceARS, formatPrice } = useStore();
-    const qty = cart.find(i => i.id === product.id)?.quantity || 0;
-    return <div onClick={onClick} className="flex gap-4 p-4 border-b border-neutral-800"><img src={product.image} className="w-16 h-16 object-cover rounded" /><div><div className="text-white">{product.nombre}</div><div className="text-gold-500">{formatPrice(calculateFinalPriceARS(product))}</div></div></div>;
+    return <div onClick={onClick} className="flex gap-4 p-4 border-b border-neutral-800"><img src={product.image} className="w-16 h-16 object-cover rounded" /><div><div className="text-white">{product.nombre}</div><div className="text-gold-500 font-bold">{formatPrice(calculateFinalPriceARS(product))}</div></div></div>;
 };
 
 const ProductModal: React.FC<{ product: Product | null, onClose: () => void }> = ({ product, onClose }) => {
     if(!product) return null;
-    return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}><div className="bg-neutral-900 p-8 rounded text-white" onClick={e=>e.stopPropagation()}><h2>{product.nombre}</h2><button onClick={onClose}>Cerrar</button></div></div>;
+    return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}><div className="bg-neutral-900 p-8 rounded text-white max-w-lg w-full" onClick={e=>e.stopPropagation()}><h2 className="text-2xl font-serif text-gold-500 mb-4">{product.nombre}</h2><img src={product.image} className="w-full h-64 object-contain mb-4"/><button onClick={onClose} className="bg-neutral-800 text-white px-4 py-2 rounded">Cerrar</button></div></div>;
 };
-const PerkinsChatModal = ({onClose}:{onClose:()=>void}) => null;
-const CartDrawer = () => null;
+
+const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [input, setInput] = useState('');
+    const [messages, setMessages] = useState<ChatMessage[]>([{role: ChatRole.MODEL, text: 'Bienvenido a Mr. Perkins. ¿En qué puedo ayudarle?'}]);
+    const { products, dolarBlue } = useStore();
+    const handleSend = async () => {
+        if(!input) return;
+        const newHistory = [...messages, {role: ChatRole.USER, text: input}];
+        setMessages(newHistory);
+        setInput('');
+        const reply = await sendMessageToPerkins(input, dolarBlue, products);
+        setMessages([...newHistory, {role: ChatRole.MODEL, text: reply}]);
+    };
+    return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"><div className="bg-neutral-900 w-full max-w-md h-[500px] flex flex-col rounded-xl border border-gold-600/30"><div className="p-4 border-b border-neutral-800 flex justify-between"><h3 className="text-gold-500 font-serif">Mr. Perkins AI</h3><button onClick={onClose}><X size={20}/></button></div><div className="flex-1 overflow-y-auto p-4 space-y-4">{messages.map((m,i)=><div key={i} className={`p-3 rounded-lg text-sm ${m.role===ChatRole.USER?'bg-neutral-800 ml-auto':'bg-gold-900/20 border border-gold-600/20'}`}>{m.text}</div>)}</div><div className="p-4 bg-black flex gap-2"><input className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-white" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSend()}/><button onClick={handleSend} className="bg-gold-600 text-black p-2 rounded"><Send size={18}/></button></div></div></div>;
+};
+
+const CartDrawer: React.FC = () => {
+    const { isCartOpen, setIsCartOpen, cart, clearCart, decreaseFromCart, addToCart, calculateFinalPriceARS, formatPrice, removeFromCart, addOrder } = useStore();
+    const [isCheckingOut, setIsCheckingOut] = useState(false);
+    const [customerInfo, setCustomerInfo] = useState({ name: '', address: '', date: '' });
+    if (!isCartOpen) return null;
+    const total = cart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
+    const handleCheckout = async () => {
+        if (!customerInfo.name || !customerInfo.address || !customerInfo.date) { alert("Complete los datos"); return; }
+        setIsCheckingOut(true);
+        try {
+            const items = cart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
+            const response = await fetch('/api/create_preference', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, shippingCost: 0, external_reference: `ORDER-${Date.now()}` }) });
+            const data = await response.json();
+            if (data.init_point) {
+                const order: Order = { id: `ORD-${Date.now()}`, items: [...cart], total: total, customerName: customerInfo.name, address: customerInfo.address, deliveryDate: customerInfo.date, status: 'pending', timestamp: Date.now(), type: 'retail' };
+                await fetch('/api/schedule_delivery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id, customerName: order.customerName, address: order.address, deliveryDate: order.deliveryDate, items: order.items, total: order.total }) });
+                addOrder(order); clearCart(); window.location.href = data.init_point;
+            }
+        } catch (error) { console.error(error); alert("Error de pago"); } finally { setIsCheckingOut(false); }
+    };
+    return <div className="fixed inset-0 z-[60] flex justify-end"><div className="absolute inset-0 bg-black/60" onClick={() => setIsCartOpen(false)} /><div className="relative w-full max-w-md bg-neutral-900 h-full shadow-2xl flex flex-col p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-serif text-white">Carrito</h2><button onClick={() => setIsCartOpen(false)}><X size={24} /></button></div><div className="flex-1 overflow-y-auto space-y-4">{cart.map(item=><div key={item.id} className="flex gap-4 items-center bg-black/40 p-3 rounded"><img src={item.image} className="w-12 h-12 rounded object-cover"/><div className="flex-1"><h4 className="text-white text-sm">{item.nombre}</h4><div className="text-gold-500 font-bold">{formatPrice(calculateFinalPriceARS(item)*item.quantity)}</div></div><QuantityControl compact product={item} quantityInCart={item.quantity} onAdd={()=>addToCart(item)} onRemove={()=>decreaseFromCart(item)}/></div>)}</div><div className="mt-6 pt-6 border-t border-neutral-800"><div className="flex justify-between text-xl font-bold mb-6"><span>Total</span><span className="text-gold-500">{formatPrice(total)}</span></div><div className="space-y-3 mb-4"><input placeholder="Nombre" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.name} onChange={e=>setCustomerInfo({...customerInfo,name:e.target.value})}/><input placeholder="Dirección" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.address} onChange={e=>setCustomerInfo({...customerInfo,address:e.target.value})}/><input type="date" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.date} onChange={e=>setCustomerInfo({...customerInfo,date:e.target.value})}/></div><button onClick={handleCheckout} disabled={isCheckingOut} className="w-full bg-gold-600 text-black font-bold py-4 rounded disabled:opacity-50">Finalizar Compra</button></div></div></div>;
+};
 
 const Catalog: React.FC = () => {
   const { products, viewMode, filterBrand, filterGender, sortPrice, calculateFinalPriceARS, isCartOpen } = useStore();
@@ -495,7 +460,6 @@ const Catalog: React.FC = () => {
 
 // --- ADMIN COMPONENTS ---
 
-// COMPONENT: Product Edit Modal (For Admin)
 const AdminProductModal: React.FC<{ 
   product: Product | null, 
   onClose: () => void, 
@@ -583,7 +547,7 @@ const AdminProductModal: React.FC<{
                              <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 15} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
                         </div>
                         <div className="col-span-2">
-                             <label className="text-xs text-gray-500 uppercase">Tags Olfativos (separados por coma)</label>
+                             <label className="text-xs text-gray-500 uppercase">Tags Olfativos</label>
                              <input className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.tags_olfativos?.join(', ') || ''} onChange={e => setFormData({...formData, tags_olfativos: e.target.value.split(',').map(s => s.trim())})} />
                         </div>
                         <div className="col-span-2">
@@ -595,7 +559,7 @@ const AdminProductModal: React.FC<{
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-black flex justify-end gap-2">
                     <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">Cancelar</button>
-                    <button onClick={handleSave} className="px-6 py-2 bg-gold-600 hover:bg-gold-500 text-black font-bold rounded flex items-center gap-2"><Save size={16}/> Guardar Cambios</button>
+                    <button onClick={handleSave} className="px-6 py-2 bg-gold-600 hover:bg-gold-500 text-black font-bold rounded flex items-center gap-2"><Save size={16}/> Guardar</button>
                 </div>
             </div>
         </div>
@@ -615,24 +579,20 @@ const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'users'>('orders');
   const [searchTerm, setSearchTerm] = useState('');
   const [globalRetail, setGlobalRetail] = useState(50);
-  const [globalWholesale, setGlobalWholesale] = useState(15);
   const isApiConfigured = isApiKeyConfigured();
 
-  // User Management
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('seller');
 
-  // Manual Order
   const [showManualOrder, setShowManualOrder] = useState(false);
-  const [manualOrderData, setManualOrderData] = useState({ clientName: '', total: 0, description: '' });
+  const [manualOrderData, setManualOrderData] = useState({ clientName: '', total: 0 });
 
-  // Product Editing
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
 
-  const filteredInventory = products.filter(p => p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || p.marca.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredInventory = products.filter(p => !p.deleted && (p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || p.marca.toLowerCase().includes(searchTerm.toLowerCase())));
 
   const handleCreateUser = () => {
      if(!newUserEmail || !newUserPass || !newUserName) { showAlert("Error", "Complete todos los campos.", "error"); return; }
@@ -645,11 +605,10 @@ const AdminPanel: React.FC = () => {
   const handleManualOrder = () => {
       if(!manualOrderData.clientName || manualOrderData.total <= 0) return;
       const newOrder: Order = { id: `MAN-${Date.now()}`, customerName: manualOrderData.clientName, total: manualOrderData.total, items: [], address: 'Venta Manual / Mostrador', deliveryDate: new Date().toISOString().split('T')[0], status: 'delivered', timestamp: Date.now(), type: 'retail', createdBy: currentUser?.email };
-      addOrder(newOrder); setShowManualOrder(false); setManualOrderData({ clientName: '', total: 0, description: '' }); showAlert("Pedido Agregado", "La venta manual se ha registrado correctamente.", "success");
+      addOrder(newOrder); setShowManualOrder(false); setManualOrderData({ clientName: '', total: 0 }); showAlert("Pedido Agregado", "La venta manual se ha registrado correctamente.", "success");
   };
 
   if (!currentUser) {
-    // Login Screen (Same as before)
     return (
       <div className="min-h-screen bg-neutral-900 flex items-center justify-center p-4">
         <div className="bg-black p-8 rounded-xl border border-gold-600/30 w-full max-w-md text-center shadow-[0_0_50px_rgba(212,175,55,0.1)]">
@@ -673,7 +632,7 @@ const AdminPanel: React.FC = () => {
         <div className="p-6 border-b border-neutral-800"><h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1><span className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-1">{currentUser.role === 'admin' ? <Shield size={10} className="text-gold-500"/> : <UserIcon size={10}/>}{currentUser.role === 'admin' ? 'Administrador' : 'Vendedor'}</span></div>
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'orders' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><ClipboardList size={20} /><span className="font-medium">Pedidos</span></button>
-          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Box size={20} /><span className="font-medium">Inventario {currentUser.role !== 'admin' && '(Solo Lectura)'}</span></button>
+          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Box size={20} /><span className="font-medium">Inventario</span></button>
           {currentUser.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Users size={20} /><span className="font-medium">Usuarios</span></button>}
         </nav>
         <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate">{currentUser.name}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
@@ -685,35 +644,23 @@ const AdminPanel: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
             {isApiConfigured && <span className="text-green-500 text-xs flex items-center gap-1"><CheckCircle size={12}/> Sistema IA Operativo</span>}
           </div>
-          {/* MANUAL DOLAR OVERRIDE */}
           {activeTab === 'inventory' && currentUser.role === 'admin' && (
              <div className="bg-black border border-gold-600/30 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                <span className="text-gold-500 text-xs font-bold uppercase tracking-widest">Cotización Dolar Blue</span>
-                <div className="flex items-center gap-1 text-white font-serif text-lg">
-                    <span>$</span>
-                    <input 
-                      type="number" 
-                      value={dolarBlue} 
-                      onChange={(e) => setDolarBlue(Number(e.target.value))} 
-                      className="bg-transparent w-16 text-right outline-none border-b border-neutral-700 focus:border-gold-500 transition-colors"
-                    />
-                </div>
-                <div className="text-[10px] text-gray-500">Editale</div>
+                <span className="text-gold-500 text-xs font-bold uppercase tracking-widest">Dolar Blue</span>
+                <div className="flex items-center gap-1 text-white font-serif text-lg"><span>$</span><input type="number" value={dolarBlue} onChange={(e) => setDolarBlue(Number(e.target.value))} className="bg-transparent w-16 text-right outline-none border-b border-neutral-700 focus:border-gold-500 transition-colors"/></div>
              </div>
           )}
         </header>
 
         {activeTab === 'orders' && (
-            // Order logic remains same
             <div className="space-y-6">
-                 {/* ... Order stats ... */}
                  <div className="flex justify-between items-center mb-4">
                      <div className="grid grid-cols-3 gap-4 flex-1 mr-4">
                         <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Total</h3><span className="text-2xl font-serif text-white">{orders.length}</span></div>
                         <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Pendientes</h3><span className="text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span></div>
                         <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Facturación</h3><span className="text-xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span></div>
                      </div>
-                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center gap-2"><Plus size={20} /> Nuevo Pedido Manual</button>
+                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center gap-2"><Plus size={20} /> Nuevo Pedido</button>
                  </div>
                  {showManualOrder && (
                      <div className="bg-neutral-800/50 p-6 rounded-lg border border-gold-600/30 mb-6 animate-fade-in">
@@ -730,13 +677,10 @@ const AdminPanel: React.FC = () => {
                       <div className="divide-y divide-neutral-800">{orders.map(order => (
                           <div key={order.id} className="p-6 hover:bg-neutral-900/50 transition-colors">
                             <div className="flex flex-col md:flex-row justify-between mb-4">
-                               <div>
-                                  <div className="flex items-center gap-3 mb-1"><span className="text-gold-500 font-bold">{order.id}</span><span className="bg-yellow-900/30 text-yellow-500 text-xs px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span><span className={`text-xs px-2 py-0.5 rounded border uppercase ${order.type === 'wholesale' ? 'bg-blue-900/30 border-blue-800 text-blue-400' : 'bg-green-900/30 border-green-800 text-green-400'}`}>{order.type === 'wholesale' ? 'Mayorista' : 'Minorista'}</span></div>
-                                  <h4 className="text-white font-medium">{order.customerName}</h4>{order.createdBy && <p className="text-xs text-gray-600 mt-1">Cargado por: {order.createdBy}</p>}
-                               </div>
+                               <div><div className="flex items-center gap-3 mb-1"><span className="text-gold-500 font-bold">{order.id}</span><span className="bg-yellow-900/30 text-yellow-500 text-xs px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span></div><h4 className="text-white font-medium">{order.customerName}</h4></div>
                                <div className="text-right mt-2 md:mt-0"><div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div><div className="text-xs text-gray-500">{order.deliveryDate}</div></div>
                             </div>
-                            {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (order.type === 'wholesale' ? (item.margin_wholesale||15) : (item.margin_retail||50))/100)) * item.quantity)}</span></li>))}</ul></div>)}
+                            {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100)) * item.quantity)}</span></li>))}</ul></div>)}
                           </div>
                         ))}
                       </div>
@@ -753,9 +697,8 @@ const AdminPanel: React.FC = () => {
                     <div className="flex flex-col md:flex-row gap-6">
                         <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800">
                             <label className="block text-gray-400 text-xs mb-2 uppercase">Margen Minorista Global (%)</label>
-                            <div className="flex gap-2"><input type="number" value={globalRetail} onChange={(e) => setGlobalRetail(Number(e.target.value))} className="bg-neutral-900 border border-neutral-700 rounded p-2 text-white w-20 text-center" /><button onClick={() => bulkUpdateMargins('retail', globalRetail)} className="bg-gold-600 text-black px-4 rounded font-bold hover:bg-gold-500 text-sm">Aplicar a Todos</button></div>
+                            <div className="flex gap-2"><input type="number" value={globalRetail} onChange={(e) => setGlobalRetail(Number(e.target.value))} className="bg-neutral-900 border border-neutral-700 rounded p-2 text-white w-20 text-center" /><button onClick={() => bulkUpdateMargins('retail', globalRetail)} className="bg-gold-600 text-black px-4 rounded font-bold hover:bg-gold-500 text-sm">Aplicar</button></div>
                         </div>
-                        {/* We hide the Global Wholesale input if desired, but kept it here for utility. User asked to remove 'Margen WHSLE del CSM' which usually implies the column table clutter. */}
                         <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800 flex items-center justify-end">
                             <button onClick={() => setIsCreatingProduct(true)} className="bg-green-700 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2"><Plus size={20}/> Agregar Producto</button>
                         </div>
@@ -779,7 +722,6 @@ const AdminPanel: React.FC = () => {
                          <>
                             <th className="p-4 text-center bg-neutral-800/30">Margen Retail</th>
                             <th className="p-4 text-center bg-neutral-800/30">Precio Retail</th>
-                            {/* REMOVED WHOLESALE COLUMNS AS REQUESTED */}
                          </>
                      )}
                      <th className="p-4 text-center">Stock</th>
@@ -795,7 +737,6 @@ const AdminPanel: React.FC = () => {
                          <tr key={product.id} className="hover:bg-neutral-900/30 transition-colors group">
                            <td className="p-4 max-w-xs"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded bg-neutral-800 overflow-hidden flex-shrink-0"><img src={product.image} alt="" className="w-full h-full object-cover" /></div><div><div className="text-white font-medium truncate">{product.nombre}</div><div className="text-gray-500 text-xs">{product.marca}</div></div></div></td>
                            
-                           {/* ADMIN VIEW */}
                            {currentUser.role === 'admin' ? (
                                <>
                                     <td className="p-4 text-center font-bold text-gray-300">${product.precio_usd}</td>
@@ -825,7 +766,6 @@ const AdminPanel: React.FC = () => {
                </table>
             </div>
             
-            {/* EDIT MODAL */}
             {(editingProduct || isCreatingProduct) && (
                 <AdminProductModal 
                     product={editingProduct}
@@ -838,10 +778,8 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* User Management code ... */}
         {activeTab === 'users' && currentUser.role === 'admin' && (
              <div className="space-y-6">
-                 {/* ... create user form ... */}
                  <div className="bg-neutral-800/30 border border-neutral-700 p-6 rounded-lg mb-6">
                     <h3 className="text-white font-bold mb-4 flex items-center gap-2"><UserPlus size={18} className="text-gold-500" /> Crear Nuevo Usuario</h3>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
