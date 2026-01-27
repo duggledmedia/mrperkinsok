@@ -1,8 +1,8 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
-import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole } from './types';
+import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
 
 // --- INITIAL USERS ---
@@ -46,6 +46,7 @@ interface AppContextType {
   setIsCartOpen: (isOpen: boolean) => void;
   orders: Order[];
   addOrder: (order: Order) => void;
+  fetchOrdersFromCalendar: () => void;
   
   // Auth & User Management
   currentUser: User | null;
@@ -169,6 +170,19 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(products.map(p => p.marca)))], [products]);
   const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(products.map(p => p.genero)))], [products]);
 
+  // Sync Calendar Orders
+  const fetchOrdersFromCalendar = async () => {
+    try {
+      const res = await fetch('/api/get_orders');
+      if (res.ok) {
+        const calendarOrders = await res.json();
+        setOrders(calendarOrders);
+      }
+    } catch (e) {
+      console.error("Failed to sync orders", e);
+    }
+  };
+
   useEffect(() => {
     const fetchDolar = async () => {
       try {
@@ -178,6 +192,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       } catch (e) { console.error(e); }
     };
     fetchDolar();
+    fetchOrdersFromCalendar(); // Load orders on start
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
@@ -285,7 +300,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <AppContext.Provider value={{ 
       products, updateProduct, addNewProduct, deleteProduct, bulkUpdateMargins,
-      cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, 
+      cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, fetchOrdersFromCalendar,
       currentUser, login, logout, users, addUser, toggleUserStatus, deleteUser, isAdmin: currentUser?.role === 'admin',
       dolarBlue, setDolarBlue, formatPrice, calculateFinalPriceARS,
       pricingMode, setPricingMode, viewMode, setViewMode,
@@ -389,26 +404,184 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 const CartDrawer: React.FC = () => {
-    const { isCartOpen, setIsCartOpen, cart, clearCart, decreaseFromCart, addToCart, calculateFinalPriceARS, formatPrice, removeFromCart, addOrder } = useStore();
+    const { isCartOpen, setIsCartOpen, cart, clearCart, decreaseFromCart, addToCart, calculateFinalPriceARS, formatPrice, removeFromCart, addOrder, showAlert } = useStore();
     const [isCheckingOut, setIsCheckingOut] = useState(false);
-    const [customerInfo, setCustomerInfo] = useState({ name: '', address: '', date: '' });
+    const [customerInfo, setCustomerInfo] = useState({ 
+        name: '', 
+        phone: '', 
+        address: '', 
+        city: '', 
+        date: new Date().toISOString().split('T')[0] 
+    });
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mercadopago');
+    const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('caba');
+
     if (!isCartOpen) return null;
     const total = cart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
+
     const handleCheckout = async () => {
-        if (!customerInfo.name || !customerInfo.address || !customerInfo.date) { alert("Complete los datos"); return; }
+        if (!customerInfo.name || !customerInfo.address || !customerInfo.date || !customerInfo.phone || !customerInfo.city) { 
+            showAlert("Faltan Datos", "Por favor, complete todos los campos del formulario.", "error"); 
+            return; 
+        }
+        
         setIsCheckingOut(true);
+        const orderId = `ORD-${Date.now()}`;
+        
+        const fullOrderData = {
+             orderId,
+             customerName: customerInfo.name,
+             phone: customerInfo.phone,
+             address: customerInfo.address,
+             city: customerInfo.city,
+             deliveryDate: customerInfo.date,
+             items: cart,
+             total: total,
+             paymentMethod,
+             shippingMethod
+        };
+
         try {
-            const items = cart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
-            const response = await fetch('/api/create_preference', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, shippingCost: 0, external_reference: `ORDER-${Date.now()}` }) });
-            const data = await response.json();
-            if (data.init_point) {
-                const order: Order = { id: `ORD-${Date.now()}`, items: [...cart], total: total, customerName: customerInfo.name, address: customerInfo.address, deliveryDate: customerInfo.date, status: 'pending', timestamp: Date.now(), type: 'retail' };
-                await fetch('/api/schedule_delivery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id, customerName: order.customerName, address: order.address, deliveryDate: order.deliveryDate, items: order.items, total: order.total }) });
-                addOrder(order); clearCart(); window.location.href = data.init_point;
+            // Guardamos en Calendario y CMS siempre, como respaldo
+            // Si es Cash, esto es lo principal. Si es MP, esto es el "Pending".
+            await fetch('/api/schedule_delivery', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(fullOrderData) 
+            });
+
+            if (paymentMethod === 'mercadopago') {
+                const items = cart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
+                const response = await fetch('/api/create_preference', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ 
+                        items, 
+                        shippingCost: 0, 
+                        external_reference: orderId 
+                    }) 
+                });
+                const data = await response.json();
+                
+                if (data.init_point) {
+                    // Limpiamos carrito antes de redirigir para que al volver este vacio
+                    clearCart();
+                    window.location.href = data.init_point;
+                }
+            } else {
+                // EFECTIVO
+                const order: Order = { 
+                    id: orderId, 
+                    items: [...cart], 
+                    total: total, 
+                    customerName: customerInfo.name, 
+                    phone: customerInfo.phone,
+                    address: customerInfo.address, 
+                    city: customerInfo.city,
+                    deliveryDate: customerInfo.date, 
+                    status: 'pending', 
+                    timestamp: Date.now(), 
+                    type: 'retail',
+                    paymentMethod: 'cash',
+                    shippingMethod: shippingMethod
+                };
+                addOrder(order); 
+                clearCart(); 
+                setIsCartOpen(false);
+                showAlert("¡Pedido Confirmado!", "Tu pedido ha sido registrado correctamente. Te contactaremos pronto.", "success");
             }
-        } catch (error) { console.error(error); alert("Error de pago"); } finally { setIsCheckingOut(false); }
+        } catch (error) { 
+            console.error(error); 
+            showAlert("Error", "Hubo un problema al procesar el pedido. Intenta nuevamente.", "error"); 
+        } finally { 
+            setIsCheckingOut(false); 
+        }
     };
-    return <div className="fixed inset-0 z-[60] flex justify-end"><div className="absolute inset-0 bg-black/60" onClick={() => setIsCartOpen(false)} /><div className="relative w-full max-w-md bg-neutral-900 h-full shadow-2xl flex flex-col p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-serif text-white">Carrito</h2><button onClick={() => setIsCartOpen(false)}><X size={24} /></button></div><div className="flex-1 overflow-y-auto space-y-4">{cart.map(item=><div key={item.id} className="flex gap-4 items-center bg-black/40 p-3 rounded"><img src={item.image} className="w-12 h-12 rounded object-cover"/><div className="flex-1"><h4 className="text-white text-sm">{item.nombre}</h4><div className="text-gold-500 font-bold">{formatPrice(calculateFinalPriceARS(item)*item.quantity)}</div></div><QuantityControl compact product={item} quantityInCart={item.quantity} onAdd={()=>addToCart(item)} onRemove={()=>decreaseFromCart(item)}/></div>)}</div><div className="mt-6 pt-6 border-t border-neutral-800"><div className="flex justify-between text-xl font-bold mb-6"><span>Total</span><span className="text-gold-500">{formatPrice(total)}</span></div><div className="space-y-3 mb-4"><input placeholder="Nombre" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.name} onChange={e=>setCustomerInfo({...customerInfo,name:e.target.value})}/><input placeholder="Dirección" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.address} onChange={e=>setCustomerInfo({...customerInfo,address:e.target.value})}/><input type="date" className="w-full bg-black border border-neutral-700 p-3 rounded text-white" value={customerInfo.date} onChange={e=>setCustomerInfo({...customerInfo,date:e.target.value})}/></div><button onClick={handleCheckout} disabled={isCheckingOut} className="w-full bg-gold-600 text-black font-bold py-4 rounded disabled:opacity-50">Finalizar Compra</button></div></div></div>;
+
+    return (
+        <div className="fixed inset-0 z-[60] flex justify-end animate-fade-in">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsCartOpen(false)} />
+            <div className="relative w-full max-w-md bg-neutral-900 h-full shadow-2xl flex flex-col border-l border-gold-600/30 animate-slide-up">
+                <div className="flex justify-between items-center p-6 border-b border-neutral-800 bg-black">
+                    <h2 className="text-xl font-serif text-white flex items-center gap-2"><ShoppingBag className="text-gold-500" /> Tu Compra</h2>
+                    <button onClick={() => setIsCartOpen(false)} className="text-gray-500 hover:text-white"><X size={24} /></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Lista de productos */}
+                    <div className="space-y-3">
+                        {cart.length === 0 ? <p className="text-gray-500 text-center py-4">El carrito está vacío.</p> : cart.map(item => (
+                            <div key={item.id} className="flex gap-3 items-center bg-black/40 p-3 rounded border border-neutral-800">
+                                <img src={item.image} className="w-12 h-12 rounded object-cover border border-neutral-700"/>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-white text-xs font-bold truncate">{item.nombre}</h4>
+                                    <div className="text-gold-500 font-bold text-sm">{formatPrice(calculateFinalPriceARS(item)*item.quantity)}</div>
+                                </div>
+                                <QuantityControl compact product={item} quantityInCart={item.quantity} onAdd={()=>addToCart(item)} onRemove={()=>decreaseFromCart(item)}/>
+                            </div>
+                        ))}
+                    </div>
+
+                    {cart.length > 0 && (
+                        <>
+                            <div className="border-t border-neutral-800 pt-4">
+                                <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-3">Datos de Envío</h3>
+                                <div className="space-y-3">
+                                    <input placeholder="Nombre Completo" className="w-full bg-black border border-neutral-700 p-3 rounded text-white text-sm outline-none focus:border-gold-600" value={customerInfo.name} onChange={e=>setCustomerInfo({...customerInfo,name:e.target.value})}/>
+                                    <input placeholder="Teléfono / WhatsApp" className="w-full bg-black border border-neutral-700 p-3 rounded text-white text-sm outline-none focus:border-gold-600" value={customerInfo.phone} onChange={e=>setCustomerInfo({...customerInfo,phone:e.target.value})}/>
+                                    <div className="flex gap-2">
+                                        <input placeholder="Dirección y Altura" className="flex-[2] bg-black border border-neutral-700 p-3 rounded text-white text-sm outline-none focus:border-gold-600" value={customerInfo.address} onChange={e=>setCustomerInfo({...customerInfo,address:e.target.value})}/>
+                                        <input placeholder="Localidad" className="flex-1 bg-black border border-neutral-700 p-3 rounded text-white text-sm outline-none focus:border-gold-600" value={customerInfo.city} onChange={e=>setCustomerInfo({...customerInfo,city:e.target.value})}/>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setShippingMethod('caba')} className={`flex-1 p-3 rounded border text-xs font-bold uppercase ${shippingMethod === 'caba' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>Moto CABA</button>
+                                        <button onClick={() => setShippingMethod('interior')} className={`flex-1 p-3 rounded border text-xs font-bold uppercase ${shippingMethod === 'interior' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>Envío Interior</button>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-neutral-800/50 p-2 rounded">
+                                        <span className="text-gray-400 text-xs">Fecha Estimada:</span>
+                                        <input type="date" className="bg-transparent text-white text-sm outline-none" value={customerInfo.date} onChange={e=>setCustomerInfo({...customerInfo,date:e.target.value})}/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-neutral-800 pt-4">
+                                <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-3">Forma de Pago</h3>
+                                <div className="space-y-2">
+                                    <button onClick={() => setPaymentMethod('mercadopago')} className={`w-full flex items-center justify-between p-3 rounded border transition-colors ${paymentMethod === 'mercadopago' ? 'bg-blue-900/20 border-blue-500' : 'bg-transparent border-neutral-700 hover:bg-neutral-800'}`}>
+                                        <div className="flex items-center gap-2">
+                                            <CreditCard className={paymentMethod === 'mercadopago' ? 'text-blue-500' : 'text-gray-500'} size={18} />
+                                            <span className={`text-sm font-bold ${paymentMethod === 'mercadopago' ? 'text-blue-400' : 'text-gray-400'}`}>Mercado Pago / Tarjetas</span>
+                                        </div>
+                                        {paymentMethod === 'mercadopago' && <CheckCircle size={16} className="text-blue-500"/>}
+                                    </button>
+                                    <button onClick={() => setPaymentMethod('cash')} className={`w-full flex items-center justify-between p-3 rounded border transition-colors ${paymentMethod === 'cash' ? 'bg-green-900/20 border-green-500' : 'bg-transparent border-neutral-700 hover:bg-neutral-800'}`}>
+                                        <div className="flex items-center gap-2">
+                                            <Banknote className={paymentMethod === 'cash' ? 'text-green-500' : 'text-gray-500'} size={18} />
+                                            <span className={`text-sm font-bold ${paymentMethod === 'cash' ? 'text-green-400' : 'text-gray-400'}`}>Efectivo Contra Entrega</span>
+                                        </div>
+                                        {paymentMethod === 'cash' && <CheckCircle size={16} className="text-green-500"/>}
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {cart.length > 0 && (
+                    <div className="p-6 bg-black border-t border-neutral-800">
+                        <div className="flex justify-between items-end mb-4">
+                            <span className="text-gray-400 text-sm">Total a Pagar</span>
+                            <span className="text-2xl font-serif text-gold-500 font-bold">{formatPrice(total)}</span>
+                        </div>
+                        <button onClick={handleCheckout} disabled={isCheckingOut} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-4 rounded-lg uppercase tracking-widest transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isCheckingOut ? <Loader2 className="animate-spin" /> : 'Confirmar Pedido'}
+                        </button>
+                        <p className="text-center text-[10px] text-gray-600 mt-2 flex justify-center items-center gap-1"><Lock size={10}/> Compra Segura</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 const Catalog: React.FC = () => {
@@ -605,7 +778,20 @@ const AdminPanel: React.FC = () => {
 
   const handleManualOrder = () => {
       if(!manualOrderData.clientName || manualOrderData.total <= 0) return;
-      const newOrder: Order = { id: `MAN-${Date.now()}`, customerName: manualOrderData.clientName, total: manualOrderData.total, items: [], address: 'Venta Manual / Mostrador', deliveryDate: new Date().toISOString().split('T')[0], status: 'delivered', timestamp: Date.now(), type: 'retail', createdBy: currentUser?.email };
+      const newOrder: Order = { 
+        id: `MAN-${Date.now()}`, 
+        customerName: manualOrderData.clientName, 
+        total: manualOrderData.total, 
+        items: [], 
+        address: 'Venta Manual / Mostrador', 
+        deliveryDate: new Date().toISOString().split('T')[0], 
+        status: 'delivered', 
+        timestamp: Date.now(), 
+        type: 'retail', 
+        createdBy: currentUser?.email,
+        paymentMethod: 'cash',
+        shippingMethod: 'caba'
+      };
       addOrder(newOrder); setShowManualOrder(false); setManualOrderData({ clientName: '', total: 0 }); showAlert("Pedido Agregado", "La venta manual se ha registrado correctamente.", "success");
   };
 
@@ -700,11 +886,31 @@ const AdminPanel: React.FC = () => {
                     {orders.length === 0 ? <div className="p-12 text-center text-gray-500"><ClipboardList size={48} className="mx-auto mb-4 opacity-20" /><p>No hay pedidos registrados.</p></div> : (
                       <div className="divide-y divide-neutral-800">{orders.map(order => (
                           <div key={order.id} className="p-4 md:p-6 hover:bg-neutral-900/50 transition-colors">
-                            <div className="flex flex-col md:flex-row justify-between mb-4 gap-2">
-                               <div><div className="flex items-center gap-3 mb-1"><span className="text-gold-500 font-bold text-sm">{order.id}</span><span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span></div><h4 className="text-white font-medium">{order.customerName}</h4></div>
-                               <div className="flex justify-between md:block text-right mt-2 md:mt-0"><div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div><div className="text-xs text-gray-500">{order.deliveryDate}</div></div>
+                            <div className="flex flex-col md:flex-row justify-between mb-2 gap-2">
+                               <div>
+                                   <div className="flex items-center gap-3 mb-1">
+                                       <span className="text-gold-500 font-bold text-sm">{order.id}</span>
+                                       <span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span>
+                                   </div>
+                                   <h4 className="text-white font-medium">{order.customerName}</h4>
+                                   <p className="text-gray-500 text-xs flex items-center gap-1 mt-1"><MapPin size={10}/> {order.address}, {order.city}</p>
+                                   <div className="flex gap-2 mt-1">
+                                      {order.paymentMethod === 'mercadopago' ? 
+                                          <span className="text-[10px] flex items-center gap-1 text-blue-400 border border-blue-900 px-1 rounded bg-blue-900/20"><CreditCard size={8}/> MP</span> : 
+                                          <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><Banknote size={8}/> Efectivo</span>
+                                      }
+                                      {order.shippingMethod === 'caba' ? 
+                                          <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={8}/> Moto</span> : 
+                                          <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><Box size={8}/> Encomienda</span>
+                                      }
+                                   </div>
+                               </div>
+                               <div className="flex justify-between md:block text-right mt-2 md:mt-0">
+                                   <div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div>
+                                   <div className="text-xs text-gray-500">{order.deliveryDate}</div>
+                               </div>
                             </div>
-                            {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100)) * item.quantity)}</span></li>))}</ul></div>)}
+                            {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm mt-3"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100)) * item.quantity)}</span></li>))}</ul></div>)}
                           </div>
                         ))}
                       </div>
@@ -713,6 +919,7 @@ const AdminPanel: React.FC = () => {
             </div>
         )}
 
+        {/* ... (Rest of AdminPanel logic remains same) ... */}
         {activeTab === 'inventory' && (
           <div className="space-y-6">
              {currentUser.role === 'admin' && (

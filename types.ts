@@ -17,16 +17,23 @@ export interface CartItem extends Product {
   quantity: number;
 }
 
+export type PaymentMethod = 'mercadopago' | 'cash';
+export type ShippingMethod = 'caba' | 'interior';
+
 export interface Order {
   id: string;
   items: CartItem[];
   total: number;
   customerName: string;
+  phone?: string;
   address: string;
+  city?: string; // Localidad
   deliveryDate: string;
   status: 'pending' | 'shipped' | 'delivered';
   timestamp: number;
   type: 'retail' | 'wholesale'; // Tipo de orden
+  paymentMethod: PaymentMethod;
+  shippingMethod: ShippingMethod;
   createdBy?: string; // Email del usuario que creó la orden
 }
 
