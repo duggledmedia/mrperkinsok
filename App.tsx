@@ -232,19 +232,22 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }));
 
     try {
-        const response = await fetch('/api/products/bulk', {
+        const response = await fetch('/api/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ updatesArray })
         });
         
-        if (!response.ok) throw new Error("Bulk update failed");
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Server Error: ${response.status} - ${errText}`);
+        }
         
         showAlert("Actualización Masiva Exitosa", `Se ha actualizado el margen ${type === 'retail' ? 'minorista' : 'mayorista'} al ${value}% para todos los productos.`, 'success');
         
     } catch (error) {
-        console.error(error);
-        showAlert("Error", "Falló la actualización masiva en el servidor.", "error");
+        console.error("Bulk update error:", error);
+        showAlert("Error", "Falló la actualización masiva en el servidor. Revise la consola para más detalles.", "error");
     }
   };
 

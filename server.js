@@ -106,8 +106,8 @@ app.post('/api/products', (req, res) => {
   res.json({ success: true, overrides: productOverrides });
 });
 
-// Bulk Product Update (For Global Margins)
-app.post('/api/products/bulk', (req, res) => {
+// Bulk Product Update (Renamed to prevent routing conflicts)
+app.post('/api/bulk-update', (req, res) => {
   const { updatesArray } = req.body; // Expects [{ id: '...', updates: {...} }, ...]
   
   if (!Array.isArray(updatesArray)) {
@@ -227,8 +227,8 @@ app.listen(port, () => {
   console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
   console.log(`   Base de datos: ${DB_PATH}`);
   console.log(`   Rutas disponibles:`);
-  console.log(`   - GET/POST /api/products (Single Update)`);
-  console.log(`   - POST /api/products/bulk (Bulk Update)`);
+  console.log(`   - GET/POST /api/products`);
+  console.log(`   - POST /api/bulk-update`);
   console.log(`   - POST /api/create_preference`);
   console.log(`   - POST /api/schedule_delivery\n`);
 });
