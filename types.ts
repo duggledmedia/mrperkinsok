@@ -26,6 +26,7 @@ export interface Order {
   status: 'pending' | 'shipped' | 'delivered';
   timestamp: number;
   type: 'retail' | 'wholesale'; // Tipo de orden
+  createdBy?: string; // Email del usuario que creó la orden
 }
 
 export interface PerkinsGesture {
@@ -41,4 +42,15 @@ export enum ChatRole {
 export interface ChatMessage {
   role: ChatRole;
   text: string;
+}
+
+// --- AUTH TYPES ---
+export type UserRole = 'admin' | 'seller';
+
+export interface User {
+  email: string;
+  pass: string;
+  role: UserRole;
+  name: string;
+  active: boolean; // Para simular confirmación de email
 }
