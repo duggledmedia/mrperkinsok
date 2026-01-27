@@ -161,7 +161,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const loginAdmin = (email: string, pass: string) => {
     // HARDCODED CREDENTIALS AS REQUESTED
-    if (email === 'diegomagia.onlie@gmail.com' && pass === 'Ak47iddqd-') {
+    if (email === 'diegomagia.online@gmail.com' && pass === 'Ak47iddqd-') {
       setIsAdmin(true);
       return true;
     }
