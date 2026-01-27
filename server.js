@@ -12,6 +12,11 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// --- IN-MEMORY DATABASE FOR PRODUCTS ---
+// Stores overrides for products (price, stock, margins). 
+// In a real production environment, this should be a Database (SQL/NoSQL).
+let productOverrides = {};
+
 // --- CONFIGURACIÓN MERCADOPAGO ---
 const accessToken = process.env.MP_ACCESS_TOKEN;
 const client = new MercadoPagoConfig({ 
@@ -50,6 +55,22 @@ if (clientEmail && privateKey && calendarId) {
 }
 
 // --- RUTAS (Prefijo /api para consistencia con Vercel) ---
+
+// 0. Product Management (CMS Persistence)
+app.get('/api/products', (req, res) => {
+  res.json(productOverrides);
+});
+
+app.post('/api/products', (req, res) => {
+  const { id, updates } = req.body;
+  if (!id) return res.status(400).json({ error: 'Missing Product ID' });
+  
+  // Merge updates
+  productOverrides[id] = { ...(productOverrides[id] || {}), ...updates };
+  
+  console.log(`📝 Producto actualizado [${id}]:`, updates);
+  res.json({ success: true, overrides: productOverrides });
+});
 
 // 1. Crear Preferencia de Pago (MercadoPago)
 app.post('/api/create_preference', async (req, res) => {
@@ -150,6 +171,7 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
 app.listen(port, () => {
   console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
   console.log(`   Rutas disponibles:`);
+  console.log(`   - GET/POST /api/products (CMS Sync)`);
   console.log(`   - POST /api/create_preference`);
   console.log(`   - POST /api/schedule_delivery\n`);
 });

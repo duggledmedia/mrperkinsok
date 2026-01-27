@@ -112,27 +112,36 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializamos productos desde LocalStorage si existen, sino desde constants
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('perkins_products');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing saved products", e);
-      }
-    }
-    return PRODUCTS.map(p => ({
+  // Inicializamos productos con los datos base
+  const [products, setProducts] = useState<Product[]>(PRODUCTS.map(p => ({
       ...p,
       margin_retail: 50,
       margin_wholesale: 15
-    }));
-  });
+  })));
 
-  // Guardar en LocalStorage cada vez que cambian los productos (Persistencia CMS)
+  // SYNC: Cargar overrides desde el servidor al iniciar y periódicamente
   useEffect(() => {
-    localStorage.setItem('perkins_products', JSON.stringify(products));
-  }, [products]);
+    const fetchUpdates = async () => {
+      try {
+        const response = await fetch('/api/products');
+        if (response.ok) {
+          const overrides = await response.json();
+          setProducts(currentProducts => currentProducts.map(p => {
+            const override = overrides[p.id];
+            // Si hay override, lo aplicamos sobre el producto base
+            return override ? { ...p, ...override } : p;
+          }));
+        }
+      } catch (error) {
+        console.warn("Modo Offline o Error de Sync:", error);
+      }
+    };
+
+    fetchUpdates();
+    // Polling ligero para mantener sincronizados a todos los clientes (cada 10s)
+    const interval = setInterval(fetchUpdates, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -186,15 +195,43 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
   };
 
-  const updateProduct = (id: string, updates: Partial<Product>) => {
+  const updateProduct = async (id: string, updates: Partial<Product>) => {
+    // 1. Optimistic Update (Local)
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    
+    // 2. Server Persist
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, updates })
+      });
+    } catch (e) {
+      console.error("Failed to persist product update", e);
+      showAlert("Error de Conexión", "El cambio se aplicó localmente pero no se pudo guardar en el servidor.", "error");
+    }
   };
 
-  const bulkUpdateMargins = (type: 'retail' | 'wholesale', value: number) => {
-    setProducts(prev => prev.map(p => ({
+  const bulkUpdateMargins = async (type: 'retail' | 'wholesale', value: number) => {
+    // Para updates masivos, iteramos y enviamos (idealmente sería un endpoint batch, pero por simplicidad...)
+    const newProducts = products.map(p => ({
       ...p,
       [type === 'retail' ? 'margin_retail' : 'margin_wholesale']: value
-    })));
+    }));
+    
+    setProducts(newProducts);
+
+    // Enviar updates en segundo plano para no bloquear
+    newProducts.forEach(p => {
+        fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                id: p.id, 
+                updates: { [type === 'retail' ? 'margin_retail' : 'margin_wholesale']: value } 
+            })
+        }).catch(console.error);
+    });
   };
 
   const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -333,7 +370,7 @@ const FloatingPricingBar: React.FC = () => {
   const { pricingMode, setPricingMode } = useStore();
   
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
+    <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
       <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-full p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-1">
         <button 
           onClick={() => setPricingMode('retail')}
@@ -410,14 +447,14 @@ const Header: React.FC = () => {
   return (
     <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-700 ${scrolled ? 'bg-luxury-black/95 backdrop-blur-md border-b border-gold-600/20 py-1' : 'bg-gradient-to-b from-black/80 to-transparent py-2'}`}>
       <div className="container mx-auto px-2">
-        <div className="flex items-center justify-between gap-2 h-12 relative">
+        <div className="flex items-center justify-between gap-2 h-10 relative">
           
           {/* LEFT: Logo */}
           <div className="flex-shrink-0 z-20 cursor-pointer w-8 md:w-auto" onClick={() => window.scrollTo(0,0)}>
             <img 
               src={PERKINS_IMAGES.LOGO} 
               alt="Mr. Perkins" 
-              className={`transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)] ${scrolled ? 'h-8 md:h-10' : 'h-10 md:h-12'}`}
+              className={`transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)] ${scrolled ? 'h-7 md:h-8' : 'h-8 md:h-10'}`}
               onError={(e) => { e.currentTarget.src = PERKINS_IMAGES.HOLA; }}
             />
           </div>
@@ -430,7 +467,7 @@ const Header: React.FC = () => {
                   <select 
                     value={filterGender}
                     onChange={(e) => setFilterGender(e.target.value)}
-                    className="w-full appearance-none bg-black/40 backdrop-blur text-gray-300 hover:text-gold-400 text-[10px] border border-neutral-800 rounded-full pl-2 pr-4 py-1.5 outline-none cursor-pointer truncate"
+                    className="w-full appearance-none bg-black/40 backdrop-blur text-gray-300 hover:text-gold-400 text-[10px] border border-neutral-800 rounded-full pl-2 pr-4 py-1 outline-none cursor-pointer truncate"
                   >
                      {availableGenders.map(g => <option key={g} value={g} className="bg-black">{g}</option>)}
                   </select>
@@ -440,7 +477,7 @@ const Header: React.FC = () => {
                   <select 
                     value={filterBrand}
                     onChange={(e) => setFilterBrand(e.target.value)}
-                    className="w-full appearance-none bg-black/40 backdrop-blur text-gray-300 hover:text-gold-400 text-[10px] border border-neutral-800 rounded-full pl-2 pr-4 py-1.5 outline-none cursor-pointer truncate"
+                    className="w-full appearance-none bg-black/40 backdrop-blur text-gray-300 hover:text-gold-400 text-[10px] border border-neutral-800 rounded-full pl-2 pr-4 py-1 outline-none cursor-pointer truncate"
                   >
                     {availableBrands.map(b => <option key={b} value={b} className="bg-black text-gray-300">{b}</option>)}
                   </select>
@@ -454,17 +491,17 @@ const Header: React.FC = () => {
              <div className="flex gap-1 bg-black/40 backdrop-blur border border-neutral-800 rounded-lg p-0.5">
                 <button 
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                  className={`p-1 rounded transition-colors ${viewMode === 'grid' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
                   title="Vista Cuadrícula"
                 >
-                  <LayoutGrid size={16} />
+                  <LayoutGrid size={14} />
                 </button>
                 <button 
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                  className={`p-1 rounded transition-colors ${viewMode === 'list' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
                   title="Vista Lista"
                 >
-                  <List size={16} />
+                  <List size={14} />
                 </button>
              </div>
 
@@ -472,9 +509,9 @@ const Header: React.FC = () => {
               onClick={() => setIsCartOpen(true)}
               className="relative text-gold-400 hover:text-white transition-colors p-2 md:p-3 group"
              >
-               <ShoppingBag size={22} className="group-hover:drop-shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-all md:w-6 md:h-6" />
+               <ShoppingBag size={20} className="group-hover:drop-shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-all md:w-5 md:h-5" />
                {cartTotalItems > 0 && (
-                 <span className="absolute top-0 right-0 bg-red-600 text-white text-[9px] md:text-[10px] font-bold w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center border border-black shadow-lg">
+                 <span className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-black shadow-lg">
                    {cartTotalItems}
                  </span>
                )}
@@ -1119,7 +1156,7 @@ const Catalog: React.FC = () => {
        </div>
 
        {/* Floating Perkins Button */}
-       <div className="fixed bottom-4 right-4 z-50 animate-slide-up">
+       <div className="fixed bottom-2 right-4 z-50 animate-slide-up">
           <button 
             onClick={() => setIsPerkinsChatOpen(true)}
             className="w-16 h-16 rounded-full border-2 border-gold-500 shadow-[0_0_30px_rgba(212,175,55,0.5)] overflow-hidden hover:scale-110 transition-transform duration-300 relative group bg-black"
