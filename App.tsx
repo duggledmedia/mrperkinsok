@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -300,6 +300,17 @@ const useStore = () => {
 
 // --- COMPONENTS ---
 
+const Footer = () => (
+  <footer className="bg-black border-t border-neutral-800 py-8 mt-12 relative z-10">
+    <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500 font-serif">
+      <div className="tracking-widest uppercase text-center md:text-left">Mr Perkins 2026 (c) Todos los derechos reservados.</div>
+      <div className="tracking-wider text-center md:text-right">
+        Diseñado y Programado por <a href="https://www.duggled.com.ar" target="_blank" rel="noopener noreferrer" className="text-gold-600 hover:text-gold-400 transition-colors font-bold">Duggled Media Design</a>
+      </div>
+    </div>
+  </footer>
+);
+
 // COMPONENT: Quantity Control
 const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAdd: () => void, onRemove: () => void, compact?: boolean }> = ({ product, quantityInCart, onAdd, onRemove, compact }) => {
   const isOutOfStock = product.stock <= 0;
@@ -310,7 +321,7 @@ const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAd
     return (
       <button 
         onClick={(e) => { e.stopPropagation(); onAdd(); }}
-        className={`bg-neutral-800 hover:bg-gold-600 hover:text-black text-gold-500 border border-gold-600/50 rounded flex items-center justify-center transition-colors uppercase tracking-widest ${compact ? 'text-[10px] px-2 py-1' : 'text-xs px-3 py-1.5'}`}
+        className={`bg-neutral-800 hover:bg-gold-600 hover:text-black text-gold-500 border border-gold-600/50 rounded flex items-center justify-center transition-colors uppercase tracking-widest ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-3 py-1.5'}`}
       >
         Agregar
       </button>
@@ -318,21 +329,21 @@ const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAd
   }
 
   return (
-    <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-6' : 'h-8'}`}>
+    <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-5' : 'h-8'}`}>
       <button 
         onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-6 h-full' : 'w-8 h-full'}`}
+        className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}
       >
-        <Minus size={compact ? 12 : 14} />
+        <Minus size={compact ? 10 : 14} />
       </button>
-      <span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-6 text-[10px]' : 'w-8 text-sm'}`}>
+      <span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-5 text-[9px]' : 'w-8 text-sm'}`}>
         {quantityInCart}
       </span>
       <button 
         onClick={(e) => { e.stopPropagation(); onAdd(); }}
-        className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-6 h-full' : 'w-8 h-full'}`}
+        className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}
       >
-        <Plus size={compact ? 12 : 14} />
+        <Plus size={compact ? 10 : 14} />
       </button>
     </div>
   );
@@ -508,8 +519,8 @@ const VideoHero: React.FC = () => {
   );
 };
 
-// RESTORED CARD STYLE PRODUCT ITEM (GRID VIEW)
-const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
+// COMPONENT: Grid View Item (4 cols always)
+const ProductGridItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
   const { cart, addToCart, decreaseFromCart, calculateFinalPrice, formatPrice } = useStore();
   const [imgError, setImgError] = useState(false);
   const cartItem = cart.find(i => i.id === product.id);
@@ -520,7 +531,7 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
   return (
     <div 
       onClick={onClick}
-      className={`group relative bg-neutral-900/50 rounded-xl overflow-hidden border border-neutral-800 hover:border-gold-600/50 transition-all duration-500 hover:shadow-[0_0_20px_rgba(212,175,55,0.1)] cursor-pointer flex flex-col h-full ${isOutOfStock ? 'opacity-60' : ''}`}
+      className={`group relative bg-neutral-900/50 rounded-lg overflow-hidden border border-neutral-800 hover:border-gold-600/50 transition-all duration-500 hover:shadow-[0_0_20px_rgba(212,175,55,0.1)] cursor-pointer flex flex-col h-full ${isOutOfStock ? 'opacity-60' : ''}`}
     >
       <div className="relative aspect-square overflow-hidden bg-white/5">
          {!imgError ? (
@@ -532,39 +543,33 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
              className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-50' : ''}`}
            />
          ) : (
-           <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={24} /></div>
+           <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={16} /></div>
          )}
          
          {isOutOfStock && (
            <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
-             <span className="text-red-500 font-bold border-2 border-red-500 px-4 py-2 rounded uppercase tracking-widest transform -rotate-12">Agotado</span>
+             <span className="text-red-500 font-bold border-2 border-red-500 px-2 py-1 text-[8px] rounded uppercase tracking-widest transform -rotate-12">Agotado</span>
            </div>
          )}
          
          {!isOutOfStock && product.stock < 3 && (
-            <div className="absolute top-2 left-2 z-10">
-               <span className="bg-red-900/80 text-white text-[9px] font-bold px-2 py-1 rounded animate-pulse">
+            <div className="absolute top-1 left-1 z-10">
+               <span className="bg-red-900/80 text-white text-[8px] font-bold px-1.5 py-0.5 rounded animate-pulse">
                  ¡Últimas {product.stock}!
                </span>
             </div>
          )}
-
-         <div className="absolute top-2 right-2 z-10">
-            <span className="bg-black/80 backdrop-blur text-gold-400 text-[10px] font-bold px-2 py-1 rounded border border-gold-600/20 uppercase tracking-wider">
-              {product.genero}
-            </span>
-         </div>
       </div>
       
-      <div className="p-4 flex flex-col flex-1">
-        <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{product.marca}</div>
-        <h3 className="text-white font-medium text-lg leading-tight mb-2 group-hover:text-gold-400 transition-colors line-clamp-2">
+      <div className="p-2 flex flex-col flex-1">
+        <div className="text-[8px] text-gray-500 uppercase tracking-wider mb-0.5 truncate">{product.marca}</div>
+        <h3 className="text-white font-medium text-[10px] md:text-xs leading-tight mb-2 group-hover:text-gold-400 transition-colors line-clamp-2 min-h-[2.5em]">
           {product.nombre}
         </h3>
         
-        <div className="mt-auto pt-3 border-t border-neutral-800/50 flex items-center justify-between">
-          <div className="text-gold-500 font-bold text-lg">{formatPrice(price)}</div>
-          <div onClick={e => e.stopPropagation()}>
+        <div className="mt-auto flex flex-col gap-1">
+          <div className="text-gold-500 font-bold text-xs md:text-sm">{formatPrice(price)}</div>
+          <div onClick={e => e.stopPropagation()} className="w-full">
              <QuantityControl 
                product={product} 
                quantityInCart={qty} 
@@ -573,6 +578,158 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
                compact
              />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// COMPONENT: List View Item (Horizontal)
+const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ product, onClick }) => {
+  const { cart, addToCart, decreaseFromCart, calculateFinalPrice, formatPrice } = useStore();
+  const [imgError, setImgError] = useState(false);
+  const cartItem = cart.find(i => i.id === product.id);
+  const qty = cartItem ? cartItem.quantity : 0;
+  const price = calculateFinalPrice(product);
+  const isOutOfStock = product.stock <= 0;
+
+  return (
+    <div 
+      onClick={onClick}
+      className={`group relative bg-neutral-900/80 rounded-lg overflow-hidden border-b border-neutral-800 hover:bg-neutral-800 transition-all duration-300 cursor-pointer flex items-center p-2 gap-3 ${isOutOfStock ? 'opacity-60' : ''}`}
+    >
+      <div className="relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0 bg-white/5 rounded overflow-hidden">
+         {!imgError ? (
+           <img 
+             src={product.image} 
+             alt={product.nombre} 
+             loading="lazy"
+             onError={() => setImgError(true)}
+             className={`w-full h-full object-cover transition-transform duration-700 ${isOutOfStock ? 'grayscale opacity-50' : ''}`}
+           />
+         ) : (
+           <div className="w-full h-full flex items-center justify-center text-gold-600 bg-neutral-900"><ImageOff size={16} /></div>
+         )}
+         
+         {isOutOfStock && (
+           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+             <span className="text-red-500 font-bold text-[8px] uppercase">Agotado</span>
+           </div>
+         )}
+      </div>
+
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className="flex justify-between items-start">
+            <div>
+                 <div className="text-[9px] text-gray-500 uppercase tracking-wider">{product.marca}</div>
+                 <h3 className="text-white font-serif text-sm md:text-lg group-hover:text-gold-400 transition-colors truncate">
+                    {product.nombre}
+                 </h3>
+                 <div className="flex gap-2 text-[9px] text-gray-400 mt-1">
+                    <span className="border border-neutral-700 px-1 rounded">{product.genero}</span>
+                    <span>{product.presentacion_ml} ML</span>
+                 </div>
+            </div>
+            <div className="text-right sm:hidden">
+                <span className="text-gold-500 font-bold text-sm">{formatPrice(price)}</span>
+            </div>
+        </div>
+      </div>
+      
+      <div className="hidden sm:flex flex-col items-end gap-2 min-w-[100px] ml-4">
+          <span className="text-gold-500 font-bold text-lg">{formatPrice(price)}</span>
+          <div onClick={e => e.stopPropagation()}>
+             <QuantityControl 
+               product={product} 
+               quantityInCart={qty} 
+               onAdd={() => addToCart(product)} 
+               onRemove={() => decreaseFromCart(product)} 
+             />
+          </div>
+      </div>
+
+      <div className="sm:hidden flex flex-col justify-end h-16" onClick={e => e.stopPropagation()}>
+          <QuantityControl 
+             product={product} 
+             quantityInCart={qty} 
+             onAdd={() => addToCart(product)} 
+             onRemove={() => decreaseFromCart(product)} 
+             compact
+          />
+      </div>
+    </div>
+  );
+};
+
+// CHAT GENERAL CON PERKINS (NO TIED TO PRODUCT)
+const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const { dolarBlue } = useStore();
+  const [chatInput, setChatInput] = useState("");
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([{ role: ChatRole.MODEL, text: "Bienvenido a mi boutique. Soy Mr. Perkins. ¿En qué puedo asesorarle hoy? ¿Busca algo para una ocasión especial, un regalo, o quizás para usted?" }]);
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
+  const handleSend = async () => {
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput;
+    setChatHistory(prev => [...prev, { role: ChatRole.USER, text: userMsg }]);
+    setChatInput("");
+    setIsTyping(true);
+
+    const response = await sendMessageToPerkins(`Contexto: Chat General de Asesoramiento. Pregunta: ${userMsg}`, dolarBlue);
+    
+    setIsTyping(false);
+    setChatHistory(prev => [...prev, { role: ChatRole.MODEL, text: response }]);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-luxury-card w-full max-w-lg h-[80vh] rounded-2xl border border-gold-600/30 shadow-2xl flex flex-col overflow-hidden">
+        
+        {/* Header */}
+        <div className="p-4 bg-black border-b border-gold-600/20 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full border border-gold-500 overflow-hidden">
+                <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover" />
+              </div>
+              <div>
+                 <h3 className="text-gold-500 font-serif font-bold">Mr. Perkins</h3>
+                 <p className="text-xs text-gray-500 uppercase tracking-widest">Su Asesor Personal</p>
+              </div>
+           </div>
+           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
+        </div>
+        
+        {/* Chat Area */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-neutral-900/50">
+            {chatHistory.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === ChatRole.USER ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-lg p-3 text-sm leading-relaxed ${msg.role === ChatRole.USER ? 'bg-neutral-800 text-white' : 'bg-gold-900/20 text-gold-100 border border-gold-600/20'}`}>
+                        {msg.text}
+                    </div>
+                </div>
+            ))}
+            {isTyping && <div className="text-xs text-gray-500 ml-2 animate-pulse">Mr. Perkins está pensando...</div>}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 bg-black border-t border-neutral-800 flex gap-2">
+            <input 
+                type="text" 
+                value={chatInput} 
+                onChange={e => setChatInput(e.target.value)} 
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                placeholder="Escriba su consulta..."
+                className="flex-1 bg-neutral-900 border border-neutral-700 rounded-full px-4 py-3 text-sm text-white focus:border-gold-500 outline-none"
+            />
+            <button onClick={handleSend} className="bg-gold-600 hover:bg-gold-500 text-black rounded-full p-3 transition-colors shadow-lg shadow-gold-600/20"><Send size={18} /></button>
         </div>
       </div>
     </div>
@@ -834,6 +991,8 @@ const CartDrawer: React.FC = () => {
 const Catalog: React.FC = () => {
   const { products, filterBrand, filterGender, sortPrice } = useStore();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isPerkinsChatOpen, setIsPerkinsChatOpen] = useState(false);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -848,23 +1007,62 @@ const Catalog: React.FC = () => {
   }, [products, filterBrand, filterGender, sortPrice]);
 
   return (
-    <div className="min-h-screen bg-neutral-900 pb-20">
+    <div className="min-h-screen bg-neutral-900 pb-20 flex flex-col">
        <Header />
        <VideoHero />
        
-       <div className="container mx-auto px-4 py-8 relative z-10 -mt-10">
+       <div className="container mx-auto px-4 py-8 relative z-10 -mt-10 flex-1">
           <div className="bg-black/80 backdrop-blur-md rounded-xl p-6 border border-neutral-800 shadow-2xl mb-8">
              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                  <h2 className="text-xl font-serif text-white">Catálogo Exclusivo</h2>
-                 {/* REMOVED: Count Text */}
+                 
+                 {/* VIEW TOGGLE BUTTONS */}
+                 <div className="flex gap-2 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
+                    <button 
+                      onClick={() => setViewMode('grid')}
+                      className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                      title="Vista Cuadrícula"
+                    >
+                      <LayoutGrid size={18} />
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('list')}
+                      className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-gold-600 text-black' : 'text-gray-500 hover:text-white'}`}
+                      title="Vista Lista"
+                    >
+                      <List size={18} />
+                    </button>
+                 </div>
              </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {filteredProducts.map(product => (
-               <ProductListItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
-             ))}
-          </div>
+          {viewMode === 'grid' ? (
+             // GRID VIEW - FORCED 4 COLUMNS EVEN ON MOBILE
+             <div className="grid grid-cols-4 gap-2 md:gap-6">
+                {filteredProducts.map((product, index) => (
+                  <div 
+                    key={product.id} 
+                    className="animate-slide-up" 
+                    style={{ animationDelay: `${index * 0.05}s`, animationFillMode: 'both' }}
+                  >
+                    <ProductGridItem product={product} onClick={() => setSelectedProduct(product)} />
+                  </div>
+                ))}
+             </div>
+          ) : (
+             // LIST VIEW - HORIZONTAL
+             <div className="flex flex-col gap-2 md:gap-4">
+                {filteredProducts.map((product, index) => (
+                  <div 
+                    key={product.id} 
+                    className="animate-slide-up" 
+                    style={{ animationDelay: `${index * 0.05}s`, animationFillMode: 'both' }}
+                  >
+                    <ProductListItem product={product} onClick={() => setSelectedProduct(product)} />
+                  </div>
+                ))}
+             </div>
+          )}
 
           {filteredProducts.length === 0 && (
              <div className="text-center py-20">
@@ -879,8 +1077,24 @@ const Catalog: React.FC = () => {
           )}
        </div>
 
+       {/* Floating Perkins Button */}
+       <div className="fixed bottom-6 right-6 z-40 animate-slide-up">
+          <button 
+            onClick={() => setIsPerkinsChatOpen(true)}
+            className="w-16 h-16 rounded-full border-2 border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.4)] overflow-hidden hover:scale-110 transition-transform duration-300 relative group"
+          >
+             <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover" />
+             <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
+          </button>
+          <div className="absolute -top-10 right-0 bg-black/80 text-gold-400 text-[10px] px-3 py-1 rounded-full border border-gold-600/30 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+             Consultar a Mr. Perkins
+          </div>
+       </div>
+
        <CartDrawer />
        <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+       {isPerkinsChatOpen && <PerkinsChatModal onClose={() => setIsPerkinsChatOpen(false)} />}
+       <Footer />
     </div>
   );
 };
