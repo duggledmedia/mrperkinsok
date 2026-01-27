@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -229,7 +229,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ updatesArray })
         });
-        showAlert("Actualización Exitosa", `Margen actualizado a ${value}%`, 'success');
+        showAlert("Actualización Exitosa", `Margen ${type === 'retail' ? 'Minorista' : 'Mayorista'} actualizado a ${value}%`, 'success');
     } catch (error) {
         showAlert("Error", "Falló la actualización masiva.", "error");
     }
@@ -579,6 +579,7 @@ const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'users'>('orders');
   const [searchTerm, setSearchTerm] = useState('');
   const [globalRetail, setGlobalRetail] = useState(50);
+  const [globalWholesale, setGlobalWholesale] = useState(15);
   const isApiConfigured = isApiKeyConfigured();
 
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -627,8 +628,31 @@ const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-gray-200 flex">
-      <aside className="w-64 bg-black border-r border-neutral-800 flex-shrink-0 flex flex-col fixed h-full z-20 md:relative">
+    <div className="min-h-screen bg-neutral-900 text-gray-200 flex flex-col md:flex-row">
+      {/* MOBILE BOTTOM NAV */}
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-black border-t border-neutral-800 flex justify-around p-3 z-50">
+          <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 ${activeTab === 'orders' ? 'text-gold-500' : 'text-gray-500'}`}>
+              <ClipboardList size={20}/>
+              <span className="text-[10px] uppercase font-bold">Pedidos</span>
+          </button>
+          <button onClick={() => setActiveTab('inventory')} className={`flex flex-col items-center gap-1 ${activeTab === 'inventory' ? 'text-gold-500' : 'text-gray-500'}`}>
+              <Box size={20}/>
+              <span className="text-[10px] uppercase font-bold">Stock</span>
+          </button>
+          {currentUser.role === 'admin' && (
+              <button onClick={() => setActiveTab('users')} className={`flex flex-col items-center gap-1 ${activeTab === 'users' ? 'text-gold-500' : 'text-gray-500'}`}>
+                  <Users size={20}/>
+                  <span className="text-[10px] uppercase font-bold">Usuarios</span>
+              </button>
+          )}
+          <button onClick={logout} className="flex flex-col items-center gap-1 text-red-500/70">
+              <LogOut size={20}/>
+              <span className="text-[10px] uppercase font-bold">Salir</span>
+          </button>
+      </nav>
+
+      {/* DESKTOP SIDEBAR */}
+      <aside className="w-64 bg-black border-r border-neutral-800 flex-shrink-0 hidden md:flex flex-col fixed h-full z-20">
         <div className="p-6 border-b border-neutral-800"><h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1><span className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-1">{currentUser.role === 'admin' ? <Shield size={10} className="text-gold-500"/> : <UserIcon size={10}/>}{currentUser.role === 'admin' ? 'Administrador' : 'Vendedor'}</span></div>
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'orders' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><ClipboardList size={20} /><span className="font-medium">Pedidos</span></button>
@@ -638,14 +662,14 @@ const AdminPanel: React.FC = () => {
         <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate">{currentUser.name}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
       </aside>
 
-      <main className="flex-1 p-8 ml-64 md:ml-0 overflow-y-auto">
-        <header className="flex justify-between items-center mb-8">
+      <main className="flex-1 p-4 md:p-8 ml-0 md:ml-64 pb-24 md:pb-8 overflow-y-auto">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
             {isApiConfigured && <span className="text-green-500 text-xs flex items-center gap-1"><CheckCircle size={12}/> Sistema IA Operativo</span>}
           </div>
           {activeTab === 'inventory' && currentUser.role === 'admin' && (
-             <div className="bg-black border border-gold-600/30 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+             <div className="bg-black border border-gold-600/30 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_15px_rgba(212,175,55,0.1)] w-full md:w-auto justify-between">
                 <span className="text-gold-500 text-xs font-bold uppercase tracking-widest">Dolar Blue</span>
                 <div className="flex items-center gap-1 text-white font-serif text-lg"><span>$</span><input type="number" value={dolarBlue} onChange={(e) => setDolarBlue(Number(e.target.value))} className="bg-transparent w-16 text-right outline-none border-b border-neutral-700 focus:border-gold-500 transition-colors"/></div>
              </div>
@@ -654,13 +678,13 @@ const AdminPanel: React.FC = () => {
 
         {activeTab === 'orders' && (
             <div className="space-y-6">
-                 <div className="flex justify-between items-center mb-4">
-                     <div className="grid grid-cols-3 gap-4 flex-1 mr-4">
-                        <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Total</h3><span className="text-2xl font-serif text-white">{orders.length}</span></div>
-                        <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Pendientes</h3><span className="text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span></div>
-                        <div className="bg-black border border-neutral-800 p-4 rounded-lg"><h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Facturación</h3><span className="text-xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span></div>
+                 <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                     <div className="grid grid-cols-3 gap-2 md:gap-4 w-full md:w-auto md:flex-1 md:mr-4">
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Total</h3><span className="text-xl md:text-2xl font-serif text-white">{orders.length}</span></div>
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Pendientes</h3><span className="text-xl md:text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span></div>
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Facturación</h3><span className="text-lg md:text-xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span></div>
                      </div>
-                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center gap-2"><Plus size={20} /> Nuevo Pedido</button>
+                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nuevo Pedido</button>
                  </div>
                  {showManualOrder && (
                      <div className="bg-neutral-800/50 p-6 rounded-lg border border-gold-600/30 mb-6 animate-fade-in">
@@ -675,10 +699,10 @@ const AdminPanel: React.FC = () => {
                  <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden">
                     {orders.length === 0 ? <div className="p-12 text-center text-gray-500"><ClipboardList size={48} className="mx-auto mb-4 opacity-20" /><p>No hay pedidos registrados.</p></div> : (
                       <div className="divide-y divide-neutral-800">{orders.map(order => (
-                          <div key={order.id} className="p-6 hover:bg-neutral-900/50 transition-colors">
-                            <div className="flex flex-col md:flex-row justify-between mb-4">
-                               <div><div className="flex items-center gap-3 mb-1"><span className="text-gold-500 font-bold">{order.id}</span><span className="bg-yellow-900/30 text-yellow-500 text-xs px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span></div><h4 className="text-white font-medium">{order.customerName}</h4></div>
-                               <div className="text-right mt-2 md:mt-0"><div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div><div className="text-xs text-gray-500">{order.deliveryDate}</div></div>
+                          <div key={order.id} className="p-4 md:p-6 hover:bg-neutral-900/50 transition-colors">
+                            <div className="flex flex-col md:flex-row justify-between mb-4 gap-2">
+                               <div><div className="flex items-center gap-3 mb-1"><span className="text-gold-500 font-bold text-sm">{order.id}</span><span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span></div><h4 className="text-white font-medium">{order.customerName}</h4></div>
+                               <div className="flex justify-between md:block text-right mt-2 md:mt-0"><div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div><div className="text-xs text-gray-500">{order.deliveryDate}</div></div>
                             </div>
                             {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100)) * item.quantity)}</span></li>))}</ul></div>)}
                           </div>
@@ -692,26 +716,55 @@ const AdminPanel: React.FC = () => {
         {activeTab === 'inventory' && (
           <div className="space-y-6">
              {currentUser.role === 'admin' && (
-                <div className="bg-neutral-800/30 border border-neutral-700 p-6 rounded-lg mb-6">
+                <div className="bg-neutral-800/30 border border-neutral-700 p-4 md:p-6 rounded-lg mb-6">
                     <h3 className="text-gold-500 font-serif mb-4 flex items-center gap-2"><SlidersHorizontal size={18} /> Configuración Global</h3>
-                    <div className="flex flex-col md:flex-row gap-6">
-                        <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800">
-                            <label className="block text-gray-400 text-xs mb-2 uppercase">Margen Minorista Global (%)</label>
-                            <div className="flex gap-2"><input type="number" value={globalRetail} onChange={(e) => setGlobalRetail(Number(e.target.value))} className="bg-neutral-900 border border-neutral-700 rounded p-2 text-white w-20 text-center" /><button onClick={() => bulkUpdateMargins('retail', globalRetail)} className="bg-gold-600 text-black px-4 rounded font-bold hover:bg-gold-500 text-sm">Aplicar</button></div>
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800 flex items-center justify-between gap-2">
+                            <label className="text-gray-400 text-xs uppercase">Margen Retail (%)</label>
+                            <div className="flex gap-2"><input type="number" value={globalRetail} onChange={(e) => setGlobalRetail(Number(e.target.value))} className="bg-neutral-900 border border-neutral-700 rounded p-2 text-white w-16 text-center text-sm" /><button onClick={() => bulkUpdateMargins('retail', globalRetail)} className="bg-gold-600 text-black px-3 rounded font-bold hover:bg-gold-500 text-xs uppercase">Aplicar</button></div>
                         </div>
-                        <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800 flex items-center justify-end">
-                            <button onClick={() => setIsCreatingProduct(true)} className="bg-green-700 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2"><Plus size={20}/> Agregar Producto</button>
+                        <div className="flex-1 bg-black/50 p-4 rounded border border-neutral-800 flex items-center justify-between gap-2">
+                            <label className="text-gray-400 text-xs uppercase">Margen Mayorista (%)</label>
+                            <div className="flex gap-2"><input type="number" value={globalWholesale} onChange={(e) => setGlobalWholesale(Number(e.target.value))} className="bg-neutral-900 border border-neutral-700 rounded p-2 text-white w-16 text-center text-sm" /><button onClick={() => bulkUpdateMargins('wholesale', globalWholesale)} className="bg-white text-black px-3 rounded font-bold hover:bg-gray-200 text-xs uppercase">Aplicar</button></div>
+                        </div>
+                        <div className="flex-1 flex items-center justify-end">
+                            <button onClick={() => setIsCreatingProduct(true)} className="w-full md:w-auto bg-green-700 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm"><Plus size={18}/> Agregar Producto</button>
                         </div>
                     </div>
                 </div>
              )}
 
-            <div className="flex items-center bg-black border border-neutral-800 rounded-lg px-4 py-3 mb-6">
+            <div className="flex items-center bg-black border border-neutral-800 rounded-lg px-4 py-3 mb-6 sticky top-0 z-10 shadow-xl">
                <Search className="text-gray-500 mr-2" size={20} />
                <input type="text" placeholder="Buscar por nombre o marca..." className="bg-transparent border-none outline-none text-white w-full placeholder-gray-600" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
 
-            <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden overflow-x-auto">
+            {/* MOBILE CARD VIEW */}
+            <div className="md:hidden grid grid-cols-1 gap-4">
+                {filteredInventory.map(product => {
+                     const costoARS = Math.ceil(product.precio_usd * dolarBlue);
+                     const retailPrice = costoARS * (1 + (product.margin_retail || 50)/100);
+                     return (
+                        <div key={product.id} className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-xl flex gap-4 items-center">
+                            <div className="w-16 h-16 rounded-lg bg-black overflow-hidden flex-shrink-0 border border-neutral-800">
+                                <img src={product.image} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-white font-bold text-sm truncate">{product.nombre}</h4>
+                                <p className="text-gray-500 text-xs truncate mb-1">{product.marca}</p>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gold-500 font-bold text-sm">{formatPrice(retailPrice)}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${product.stock > 0 ? 'border-green-800 text-green-500' : 'border-red-800 text-red-500'}`}>{product.stock} u.</span>
+                                </div>
+                            </div>
+                            <button onClick={() => setEditingProduct(product)} className="bg-neutral-800 p-2 rounded-full text-gray-300 hover:text-white hover:bg-neutral-700"><Edit3 size={18} /></button>
+                        </div>
+                     )
+                })}
+            </div>
+
+            {/* DESKTOP TABLE VIEW */}
+            <div className="hidden md:block bg-black border border-neutral-800 rounded-lg overflow-hidden overflow-x-auto">
                <table className="w-full text-left text-sm whitespace-nowrap">
                  <thead className="bg-neutral-900 text-gray-400 uppercase tracking-wider text-xs font-medium">
                    <tr>
