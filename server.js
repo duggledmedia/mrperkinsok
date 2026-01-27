@@ -3,8 +3,15 @@ import cors from 'cors';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DB_PATH = path.join(__dirname, 'db.json');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,10 +19,30 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// --- IN-MEMORY DATABASE FOR PRODUCTS ---
-// Stores overrides for products (price, stock, margins). 
-// In a real production environment, this should be a Database (SQL/NoSQL).
-let productOverrides = {};
+// --- DATABASE PERSISTENCE HELPER ---
+function loadDb() {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const data = fs.readFileSync(DB_PATH, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error("Error reading DB:", e);
+  }
+  return {};
+}
+
+function saveDb(data) {
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("Error saving DB:", e);
+  }
+}
+
+// Load initial data
+let productOverrides = loadDb();
+console.log(`📦 Base de datos cargada con ${Object.keys(productOverrides).length} modificaciones.`);
 
 // --- CONFIGURACIÓN MERCADOPAGO ---
 const accessToken = process.env.MP_ACCESS_TOKEN;
@@ -54,10 +81,12 @@ if (clientEmail && privateKey && calendarId) {
   console.warn("⚠️  ALERTA CALENDAR: Faltan credenciales en .env");
 }
 
-// --- RUTAS (Prefijo /api para consistencia con Vercel) ---
+// --- RUTAS ---
 
 // 0. Product Management (CMS Persistence)
 app.get('/api/products', (req, res) => {
+  // Always read fresh from disk to ensure sync across processes if needed
+  productOverrides = loadDb();
   res.json(productOverrides);
 });
 
@@ -65,8 +94,14 @@ app.post('/api/products', (req, res) => {
   const { id, updates } = req.body;
   if (!id) return res.status(400).json({ error: 'Missing Product ID' });
   
+  // Reload DB to get latest state
+  productOverrides = loadDb();
+  
   // Merge updates
   productOverrides[id] = { ...(productOverrides[id] || {}), ...updates };
+  
+  // Persist to disk
+  saveDb(productOverrides);
   
   console.log(`📝 Producto actualizado [${id}]:`, updates);
   res.json({ success: true, overrides: productOverrides });
@@ -170,6 +205,7 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
 
 app.listen(port, () => {
   console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
+  console.log(`   Base de datos: ${DB_PATH}`);
   console.log(`   Rutas disponibles:`);
   console.log(`   - GET/POST /api/products (CMS Sync)`);
   console.log(`   - POST /api/create_preference`);

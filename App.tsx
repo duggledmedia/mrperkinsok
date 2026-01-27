@@ -133,13 +133,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           }));
         }
       } catch (error) {
-        console.warn("Modo Offline o Error de Sync:", error);
+        // Silent fail in offline mode to not annoy user
       }
     };
 
     fetchUpdates();
-    // Polling ligero para mantener sincronizados a todos los clientes (cada 10s)
-    const interval = setInterval(fetchUpdates, 10000);
+    // Polling más frecuente (cada 5s) para que los cambios se vean rápido
+    const interval = setInterval(fetchUpdates, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -742,7 +742,7 @@ const ProductListItem: React.FC<{ product: Product, onClick: () => void }> = ({ 
 
 // CLASSIC PERKINS ADVISOR MODAL (VISUAL NOVEL STYLE)
 const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { dolarBlue } = useStore();
+  const { dolarBlue, products } = useStore();
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -768,7 +768,7 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setChatInput("");
     setIsTyping(true);
 
-    const response = await sendMessageToPerkins(`Contexto: Chat General de Asesoramiento. Pregunta: ${userMsg}`, dolarBlue);
+    const response = await sendMessageToPerkins(`Contexto: Chat General de Asesoramiento. Pregunta: ${userMsg}`, dolarBlue, products);
     
     setIsTyping(false);
     setChatHistory(prev => [...prev, { role: ChatRole.MODEL, text: response }]);
@@ -839,7 +839,7 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 const ProductModal: React.FC<{ product: Product | null, onClose: () => void }> = ({ product, onClose }) => {
-  const { addToCart, cart, decreaseFromCart, calculateFinalPrice, formatPrice, dolarBlue, showAlert } = useStore();
+  const { addToCart, cart, decreaseFromCart, calculateFinalPrice, formatPrice, dolarBlue, showAlert, products } = useStore();
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -864,7 +864,7 @@ const ProductModal: React.FC<{ product: Product | null, onClose: () => void }> =
     setChatInput("");
     setIsTyping(true);
 
-    const response = await sendMessageToPerkins(`Contexto: Usuario pregunta sobre ${product?.nombre} (${product?.marca}). Pregunta: ${userMsg}`, dolarBlue);
+    const response = await sendMessageToPerkins(`Contexto: Usuario pregunta sobre ${product?.nombre} (${product?.marca}). Pregunta: ${userMsg}`, dolarBlue, products);
     
     setIsTyping(false);
     setChatHistory(prev => [...prev, { role: ChatRole.MODEL, text: response }]);
