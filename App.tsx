@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
+import React, { Component, useState, useEffect, createContext, useContext, useRef, useMemo, ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, ClipboardList, LogOut, Lock, Search, Edit3, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Phone, MessageCircle, ChevronUp, ChevronDown, Package } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
@@ -25,13 +25,16 @@ const INITIAL_USERS: User[] = [
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 interface ErrorBoundaryState {
   hasError: boolean;
 }
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false };
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true };
@@ -284,13 +287,18 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const updateOrderStatus = async (orderId: string, status: string) => {
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: status as any } : o));
       const order = orders.find(o => o.id === orderId);
-      if (order?.googleEventId) {
-          fetch('/api/update_order_status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ googleEventId: order.googleEventId, status })
-          }).catch(console.error);
-      }
+      
+      try {
+        await fetch('/api/update_order_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                orderId: orderId,
+                googleEventId: order?.googleEventId, 
+                status 
+            })
+        });
+      } catch(e) { console.error("Update status failed", e); }
   };
 
   const showAlert = (title: string, message: string, type: 'success'|'error'|'info'='info') => setAlertData({ isOpen: true, title, message, type });

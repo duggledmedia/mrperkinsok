@@ -8,16 +8,23 @@ const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { googleEventId, status } = req.body;
+  const { orderId, googleEventId, status } = req.body;
 
   try {
-    // 1. UPDATE SUPABASE (Usando google_event_id como clave si está disponible)
-    if (googleEventId && supabaseUrl) {
-         const { error } = await supabase
-            .from('orders')
-            .update({ status: status }) // Columna 'status' text
-            .eq('google_event_id', googleEventId);
+    // 1. UPDATE SUPABASE
+    if (supabaseUrl) {
+         let query = supabase.from('orders').update({ status: status });
          
+         if (orderId) {
+             query = query.eq('id', orderId);
+         } else if (googleEventId) {
+             query = query.eq('google_event_id', googleEventId);
+         } else {
+             console.warn("No ID provided for order status update");
+             // Return early only if we strictly need DB update, but let's try calendar anyway
+         }
+
+         const { error } = await query;
          if (error) throw error;
     }
 
