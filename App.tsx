@@ -673,7 +673,7 @@ const CartDrawer: React.FC = () => {
                                             <Truck size={14}/> Moto CABA
                                         </button>
                                         <button onClick={() => setShippingMethod('interior')} className={`p-2 rounded border text-[10px] md:text-xs font-bold uppercase flex flex-col items-center justify-center gap-1 ${shippingMethod === 'interior' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>
-                                            <div className="font-bold text-lg">📦</div> Interior
+                                            <span className="text-xl">📦</span> Interior
                                         </button>
                                         <button onClick={() => setShippingMethod('pickup')} className={`p-2 rounded border text-[10px] md:text-xs font-bold uppercase flex flex-col items-center justify-center gap-1 ${shippingMethod === 'pickup' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>
                                             <MapPin size={14}/> Retiro
@@ -717,7 +717,7 @@ const CartDrawer: React.FC = () => {
 
                                     {shippingMethod === 'interior' && (
                                         <div className="bg-blue-900/20 p-3 rounded border border-blue-800 text-xs text-blue-200">
-                                            <p className="flex items-start gap-2 mb-2"><Truck className="flex-shrink-0 mt-0.5" size={14}/> <strong>Via Cargo Online</strong></p>
+                                            <p className="flex items-start gap-2 mb-2"><span className="text-lg">🚚</span> <strong>Via Cargo Online</strong></p>
                                             <div className="bg-black/40 p-2 rounded mb-2 border border-blue-900/50">
                                                 <p className="text-gray-400 text-[10px] uppercase">Estimación de Bultos</p>
                                                 <p className="font-bold">{totalItems} caja(s) aprox. (15x10x10 cm c/u)</p>
@@ -762,7 +762,7 @@ const CartDrawer: React.FC = () => {
                                     </button>
                                     <button onClick={() => setPaymentMethod('cash')} className={`w-full flex items-center justify-between p-3 rounded border transition-colors ${paymentMethod === 'cash' ? 'bg-green-900/20 border-green-500' : 'bg-transparent border-neutral-700 hover:bg-neutral-800'}`}>
                                         <div className="flex items-center gap-2">
-                                            <div className="font-bold text-lg">💵</div>
+                                            <span className="text-xl">💵</span>
                                             <span className={`text-sm font-bold ${paymentMethod === 'cash' ? 'text-green-400' : 'text-gray-400'}`}>Efectivo Contra Entrega</span>
                                         </div>
                                         {paymentMethod === 'cash' && <CheckCircle size={16} className="text-green-500"/>}
@@ -792,7 +792,7 @@ const CartDrawer: React.FC = () => {
                             </div>
                         </div>
                         <button onClick={handleCheckout} disabled={isCheckingOut} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-4 rounded-lg uppercase tracking-widest transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isCheckingOut ? <Loader2 className="animate-spin" /> : 'Confirmar Pedido'}
+                            {isCheckingOut ? <span className="animate-spin">⏳</span> : 'Confirmar Pedido'}
                         </button>
                         <p className="text-center text-[10px] text-gray-600 mt-2 flex justify-center items-center gap-1"><Lock size={10}/> Compra Segura</p>
                     </div>
@@ -1073,7 +1073,7 @@ const AdminPanel: React.FC = () => {
               <span className="text-[10px] uppercase font-bold">Pedidos</span>
           </button>
           <button onClick={() => setActiveTab('inventory')} className={`flex flex-col items-center gap-1 ${activeTab === 'inventory' ? 'text-gold-500' : 'text-gray-500'}`}>
-              <div className="font-bold text-lg">📦</div>
+              <span className="text-xl">📦</span>
               <span className="text-[10px] uppercase font-bold">Stock</span>
           </button>
           {currentUser.role === 'admin' && (
@@ -1092,7 +1092,7 @@ const AdminPanel: React.FC = () => {
         <div className="p-6 border-b border-neutral-800"><h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1><span className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-1">{currentUser.role === 'admin' ? <Shield size={10} className="text-gold-500"/> : <UserIcon size={10}/>}{currentUser.role === 'admin' ? 'Administrador' : 'Vendedor'}</span></div>
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'orders' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><ClipboardList size={20} /><span className="font-medium">Pedidos</span></button>
-          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><div className="font-bold text-lg">📦</div><span className="font-medium">Inventario</span></button>
+          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><span className="text-xl">📦</span><span className="font-medium">Inventario</span></button>
           {currentUser.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Users size={20} /><span className="font-medium">Usuarios</span></button>}
         </nav>
         <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate flex items-center gap-2">{currentUser.name} {isApiConfigured && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Sistema IA Operativo"></span>}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
@@ -1135,6 +1135,7 @@ const AdminPanel: React.FC = () => {
                             <div className="bg-black border border-green-900/30 p-3 md:p-4 rounded-lg relative overflow-hidden group">
                                 <h3 className="text-green-600 text-[10px] md:text-xs uppercase tracking-wider mb-2 font-bold">Ganancia Est.</h3>
                                 <span className="text-lg md:text-xl font-serif text-green-500">{formatPrice(estimatedProfit)}</span>
+                                <span className="absolute top-2 right-2 text-green-500 text-xl">📈</span>
                             </div>
                         )}
                      </div>
@@ -1256,16 +1257,16 @@ const AdminPanel: React.FC = () => {
                                             <div className="flex gap-2 mb-1">
                                                 {order.paymentMethod === 'mercadopago' ? 
                                                     <span className="text-[10px] flex items-center gap-1 text-blue-400 border border-blue-900 px-1 rounded bg-blue-900/20"><CreditCard size={10}/> MP</span> : 
-                                                    <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><div className="font-bold text-xs">💵</div> Efectivo</span>
+                                                    <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><span className="text-xs">💵</span> Efectivo</span>
                                                 }
                                                 {order.shippingMethod === 'caba' ? 
                                                     <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={10}/> Moto</span> : 
                                                 order.shippingMethod === 'pickup' ?
                                                     <span className="text-[10px] flex items-center gap-1 text-emerald-400 border border-emerald-900 px-1 rounded bg-emerald-900/20"><MapPin size={10}/> Retiro</span> :
-                                                    <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><div className="w-2.5 h-2.5 flex items-center justify-center font-bold text-[8px]">📦</div> Interior</span>
+                                                    <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><span className="text-[8px]">📦</span> Interior</span>
                                                 }
                                             </div>
-                                            <p className="flex items-center gap-2"><div className="font-bold text-xs">🕒</div> Entrega: {order.deliveryDate}</p>
+                                            <p className="flex items-center gap-2"><span className="text-xs">🕒</span> Entrega: {order.deliveryDate}</p>
                                        </div>
                                    </div>
                                </div>
