@@ -1,22 +1,11 @@
-import { put, list } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
-async function getDbFromBlob() {
-  const { blobs } = await list({ prefix: 'db.json', limit: 1 });
-  if (blobs.length > 0) {
-    const response = await fetch(`${blobs[0].url}?t=${Date.now()}`);
-    return await response.json();
-  }
-  return {};
-}
-
-async function saveDbToBlob(data) {
-  await put('db.json', JSON.stringify(data), { access: 'public', addRandomSuffix: false });
-}
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 export default async function handler(req, res) {
-  // CRITICO: Desactivar caché
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -31,6 +20,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!supabaseUrl || !supabaseKey) {
+    return res.status(500).json({ error: "Database configuration missing" });
+  }
+
   try {
     const { updatesArray } = req.body;
     
@@ -38,20 +31,39 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'updatesArray must be an array' });
     }
 
-    const currentData = await getDbFromBlob();
-    
-    updatesArray.forEach(item => {
-        if (item.id && item.updates) {
-           currentData[item.id] = { ...(currentData[item.id] || {}), ...item.updates };
-        }
-    });
+    // Preparar payload masivo para Supabase
+    // Supabase permite pasar un array de objetos a .upsert()
+    const upsertData = updatesArray
+      .filter(item => item.id && item.updates)
+      .map(item => ({
+        id: item.id,
+        ...item.updates,
+        updated_at: new Date().toISOString()
+      }));
 
-    await saveDbToBlob(currentData);
+    if (upsertData.length === 0) {
+        return res.status(200).json({ success: true, message: "Nothing to update" });
+    }
 
-    return res.status(200).json({ success: true, overrides: currentData });
+    const { error } = await supabase
+      .from('product_overrides')
+      .upsert(upsertData);
+
+    if (error) throw error;
+
+    // Obtener estado actualizado
+    const { data: allData } = await supabase.from('product_overrides').select('*');
+    const overrides = {};
+    if (allData) {
+        allData.forEach(item => {
+          overrides[item.id] = item;
+        });
+    }
+
+    return res.status(200).json({ success: true, overrides });
 
   } catch (error) {
-    console.error("Vercel Blob Bulk Update Error:", error);
+    console.error("Supabase Bulk Update Error:", error);
     return res.status(500).json({ error: "Error updating storage", details: error.message });
   }
 }

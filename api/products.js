@@ -1,29 +1,13 @@
-import { put, list } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
-// Helper para obtener la DB desde Blob Storage
-async function getDbFromBlob() {
-  const { blobs } = await list({ prefix: 'db.json', limit: 1 });
-  
-  if (blobs.length > 0) {
-    // timestamp evita el cache de la URL del blob
-    const response = await fetch(`${blobs[0].url}?t=${Date.now()}`);
-    return await response.json();
-  }
-  return {};
-}
-
-// Helper para guardar en Blob Storage
-async function saveDbToBlob(data) {
-  await put('db.json', JSON.stringify(data), { access: 'public', addRandomSuffix: false });
-}
+// Inicializar cliente Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 export default async function handler(req, res) {
-  // CRITICO: Desactivar caché para ver cambios inmediatos
+  // Configuración de Headers y CORS
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  
-  // Configurar CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -34,34 +18,68 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("❌ Faltan credenciales de Supabase");
+    return res.status(500).json({ error: "Database configuration missing" });
+  }
+
   try {
+    // --- GET: OBTENER TODOS LOS PRODUCTOS ---
     if (req.method === 'GET') {
-      const data = await getDbFromBlob();
-      return res.status(200).json(data);
+      const { data, error } = await supabase
+        .from('product_overrides')
+        .select('*');
+
+      if (error) throw error;
+
+      // Transformar array de Supabase a Objeto Key-Value para el frontend
+      // Formato esperado: { "prod-id-1": { stock: 10, ... }, "prod-id-2": { ... } }
+      const overrides = {};
+      data.forEach(item => {
+        overrides[item.id] = item;
+      });
+
+      return res.status(200).json(overrides);
     } 
     
+    // --- POST: ACTUALIZAR UN PRODUCTO ---
     else if (req.method === 'POST') {
       const { id, updates } = req.body;
       
       if (!id) return res.status(400).json({ error: 'Falta ID' });
 
-      const currentData = await getDbFromBlob();
-      
-      const updatedData = {
-        ...currentData,
-        [id]: { ...(currentData[id] || {}), ...updates }
+      // Preparar datos para Upsert (Insertar o Actualizar)
+      const payload = {
+        id,
+        ...updates,
+        updated_at: new Date().toISOString()
       };
 
-      await saveDbToBlob(updatedData);
+      const { data, error } = await supabase
+        .from('product_overrides')
+        .upsert(payload)
+        .select();
 
-      return res.status(200).json({ success: true, overrides: updatedData });
+      if (error) throw error;
+
+      // Devolver estado actual completo para que el frontend actualice su caché
+      // (Reutilizamos lógica de GET para consistencia o devolvemos éxito simple)
+      const { data: allData } = await supabase.from('product_overrides').select('*');
+      const overrides = {};
+      if (allData) {
+          allData.forEach(item => {
+            overrides[item.id] = item;
+          });
+      }
+
+      return res.status(200).json({ success: true, overrides });
     } 
     
     else {
       return res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error("Vercel Blob Error:", error);
-    return res.status(500).json({ error: "Storage Error", details: error.message });
+    console.error("Supabase Error:", error);
+    return res.status(500).json({ error: "Database Error", details: error.message });
   }
 }

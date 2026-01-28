@@ -109,8 +109,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const fetchUpdates = async () => {
-      // Pause automatic polling if user recently updated
-      if (Date.now() - lastUpdateRef.current < 10000) {
+      // Pause automatic polling if user recently updated locally
+      if (Date.now() - lastUpdateRef.current < 5000) {
           return; 
       }
 
@@ -131,19 +131,22 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   productMap.delete(id);
               } else {
                   const existing = productMap.get(id);
+                  // Ensure margins are numbers, fallback to defaults if null/undefined
+                  const marginRetail = data.margin_retail !== undefined ? Number(data.margin_retail) : (existing?.margin_retail ?? 50);
+                  const marginWholesale = data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : (existing?.margin_wholesale ?? 15);
+
                   if (existing) {
-                      // Valid existing product
+                      // Update existing
                       productMap.set(id, { 
                           ...existing, 
                           ...data,
                           precio_usd: data.precio_usd !== undefined ? Number(data.precio_usd) : existing.precio_usd,
                           stock: data.stock !== undefined ? Number(data.stock) : existing.stock,
-                          // Use overrides, if not found use existing, if not found use defaults (50/15)
-                          margin_retail: data.margin_retail !== undefined ? Number(data.margin_retail) : (existing.margin_retail ?? 50),
-                          margin_wholesale: data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : (existing.margin_wholesale ?? 15)
+                          margin_retail: marginRetail,
+                          margin_wholesale: marginWholesale
                       });
                   } else {
-                      // Only add if it looks like a genuine new product created in admin (has a name)
+                      // New Product
                       if (data.nombre && data.nombre !== 'Nuevo Producto') {
                           productMap.set(id, { 
                               id, 
@@ -156,8 +159,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                               genero: 'Unisex',
                               image: 'https://via.placeholder.com/150',
                               ...data,
-                              margin_retail: data.margin_retail ?? 50,
-                              margin_wholesale: data.margin_wholesale ?? 15
+                              margin_retail: marginRetail,
+                              margin_wholesale: marginWholesale
                           });
                       }
                   }
@@ -166,6 +169,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           setProducts(Array.from(productMap.values()));
           setSyncStatus('synced');
         } else {
+            // API Error (e.g. 500 if Blob not configured)
+            // Don't overwrite local products, just mark error
             setSyncStatus('error');
         }
       } catch (error) {
@@ -175,7 +180,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     fetchUpdates();
-    const interval = setInterval(fetchUpdates, 4000); 
+    const interval = setInterval(fetchUpdates, 5000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -192,6 +197,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   });
 
   const setDolarBlue = (val: number) => {
+      if(!val || val <= 0) return;
       setDolarBlueState(val);
       localStorage.setItem('dolarBlue', String(val));
   };
@@ -222,12 +228,11 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const fetchDolar = async () => {
       try {
         const response = await fetch('https://dolarapi.com/v1/dolares/blue');
-        const data = await response.json();
-        if (data && data.venta) {
-            // If the API value is valid, we can choose to update it or respect user override.
-            // Let's only update if the stored value is very old or significantly different?
-            // For simplicity, let's update it on load to keep it fresh from the API.
-            setDolarBlue(data.venta); 
+        if(response.ok) {
+            const data = await response.json();
+            if (data && data.venta && data.venta > 0) {
+                setDolarBlue(data.venta); 
+            }
         }
       } catch (e) { console.error("Error fetching Dolar:", e); }
     };
@@ -236,17 +241,23 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    // If margin is undefined, fall back to 50/15 defaults
-    const margin = pricingMode === 'wholesale' 
-        ? (product.margin_wholesale !== undefined ? product.margin_wholesale : 15) 
-        : (product.margin_retail !== undefined ? product.margin_retail : 50);
+    // Definitive logic for margins
+    const defaultRetail = 50;
+    const defaultWholesale = 15;
+
+    const retail = product.margin_retail !== undefined ? product.margin_retail : defaultRetail;
+    const wholesale = product.margin_wholesale !== undefined ? product.margin_wholesale : defaultWholesale;
+
+    const margin = pricingMode === 'wholesale' ? wholesale : retail;
         
-    const costoEnPesos = product.precio_usd * dolarBlue;
+    const safeDolar = dolarBlue > 0 ? dolarBlue : 1230; // Fallback
+    const costoEnPesos = product.precio_usd * safeDolar;
     return Math.ceil(costoEnPesos * (1 + margin / 100));
   };
 
   const calculateProductCostARS = (product: Product): number => {
-    return Math.ceil(product.precio_usd * dolarBlue);
+    const safeDolar = dolarBlue > 0 ? dolarBlue : 1230;
+    return Math.ceil(product.precio_usd * safeDolar);
   };
 
   const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
@@ -264,7 +275,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       } catch (e) {
         console.error("Failed to persist", e);
         setSyncStatus('error');
-        showAlert("Error de Conexión", "No se pudo guardar en el servidor.", "error");
+        showAlert("Error de Conexión", "No se pudo guardar en el servidor. Revise configuración de Vercel Blob.", "error");
       }
   };
 
@@ -680,8 +691,8 @@ const AdminProductModal: React.FC<{
                 nombre: '', marca: '', precio_usd: 0, stock: 0, 
                 presentacion_ml: 100, genero: 'Unisex', 
                 tags_olfativos: [], 
-                margin_retail: 0, 
-                margin_wholesale: 0,
+                margin_retail: 50, // Default 50
+                margin_wholesale: 15, // Default 15
                 image: 'https://via.placeholder.com/300?text=No+Image'
             });
         }
@@ -699,8 +710,8 @@ const AdminProductModal: React.FC<{
                 genero: formData.genero || 'Unisex',
                 tags_olfativos: formData.tags_olfativos || [],
                 image: formData.image,
-                margin_retail: Number(formData.margin_retail) || 0,
-                margin_wholesale: Number(formData.margin_wholesale) || 0
+                margin_retail: Number(formData.margin_retail ?? 50),
+                margin_wholesale: Number(formData.margin_wholesale ?? 15)
             } as Product;
             onCreate(newProduct);
         } else if (product && onSave) {
@@ -745,11 +756,11 @@ const AdminProductModal: React.FC<{
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-green-500 uppercase font-bold">Margen Minorista (%)</label>
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 0} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail ?? 50} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-blue-500 uppercase font-bold">Margen Mayorista (%)</label>
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 0} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale ?? 15} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
                         </div>
                         <div className="col-span-2">
                              <label className="text-xs text-gray-500 uppercase">Tags Olfativos</label>
@@ -1204,8 +1215,9 @@ const AdminPanel: React.FC = () => {
                  <tbody className="divide-y divide-neutral-800">
                    {filteredInventory.map(product => {
                        const costoARS = Math.ceil(product.precio_usd * dolarBlue);
-                       // CAMBIADO: Default es 0
-                       const retailPrice = costoARS * (1 + (product.margin_retail || 0)/100);
+                       // Default fallback: 50%
+                       const marginToUse = product.margin_retail !== undefined ? product.margin_retail : 50;
+                       const retailPrice = costoARS * (1 + marginToUse/100);
                        
                        return (
                          <tr key={product.id} className="hover:bg-neutral-900/30 transition-colors group">
@@ -1216,7 +1228,7 @@ const AdminPanel: React.FC = () => {
                                     <td className="p-4 text-center font-bold text-gray-300">${product.precio_usd}</td>
                                     <td className="p-4 text-center text-gray-600 font-mono text-xs">{formatPrice(costoARS)}</td>
                                     
-                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail || 0}</span><span className="text-xs text-gray-500">%</span></div></td>
+                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail ?? 50}</span><span className="text-xs text-gray-500">%</span></div></td>
                                     <td className="p-4 text-center bg-neutral-800/30 text-green-400 font-bold">{formatPrice(retailPrice)}</td>
                                     
                                     <td className="p-4 text-center"><span className={`font-bold ${product.stock === 0 ? 'text-red-500' : 'text-white'}`}>{product.stock}</span></td>
