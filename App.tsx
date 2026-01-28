@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff, Store } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff, Store, CloudRain } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -491,16 +491,23 @@ const CartDrawer: React.FC = () => {
     // --- NUEVOS ESTADOS PARA ENVÍO ---
     const [isRaining, setIsRaining] = useState(false);
     const [payShippingNow, setPayShippingNow] = useState(false);
+    const [checkingWeather, setCheckingWeather] = useState(false);
 
     if (!isCartOpen) return null;
 
     // --- CÁLCULO DE COSTOS ---
     const cartTotal = cart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
+    const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+    
+    // Volumetría para Via Cargo (15x10x10 cm por item)
+    // 1 bulto estándar de 15x10x10 = 1500 cm3
+    const totalVolumeCm3 = totalItems * 1500;
+    // Estimación caja agrupada (simple): Raíz cúbica para "lado promedio" o simplemente sumar volumen.
     
     let shippingCost = 0;
     if (shippingMethod === 'caba') {
         const baseCost = 7500;
-        shippingCost = isRaining ? baseCost * 1.5 : baseCost;
+        shippingCost = isRaining ? Math.ceil(baseCost * 1.5) : baseCost;
     } else {
         // Para interior es "Pago en Destino" (0 ahora)
         // Para retiro es 0
@@ -509,24 +516,57 @@ const CartDrawer: React.FC = () => {
 
     const finalTotal = cartTotal + (payShippingNow ? shippingCost : 0);
 
+    const checkWeather = async () => {
+        setCheckingWeather(true);
+        try {
+            // OpenMeteo for Buenos Aires (Lat: -34.6037, Long: -58.3816)
+            // Codes: 51, 53, 55 (Drizzle), 61, 63, 65 (Rain), 80, 81, 82 (Showers), 95, 96, 99 (Thunderstorm)
+            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&current=weather_code&timezone=America%2FSao_Paulo');
+            const data = await res.json();
+            const code = data.current.weather_code;
+            const rainCodes = [51, 53, 55, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99];
+            
+            if (rainCodes.includes(code)) {
+                setIsRaining(true);
+            } else {
+                setIsRaining(false);
+            }
+        } catch (e) {
+            console.error("Error checking weather", e);
+            // Fallback manual check enabled if API fails
+        } finally {
+            setCheckingWeather(false);
+        }
+    };
+
+    // Auto-check weather when selecting CABA
+    useEffect(() => {
+        if (shippingMethod === 'caba') {
+            checkWeather();
+        }
+    }, [shippingMethod]);
+
     const handleCheckout = async () => {
         if (!customerInfo.name || (!customerInfo.address && shippingMethod !== 'pickup') || !customerInfo.date || !customerInfo.phone || (!customerInfo.city && shippingMethod !== 'pickup')) { 
             showAlert("Faltan Datos", "Por favor, complete todos los campos requeridos.", "error"); 
             return; 
         }
 
-        // Validar Hora
+        // 1. VALIDAR HORA (15 a 21)
         const [hours] = customerInfo.time.split(':').map(Number);
         if (hours < 15 || hours >= 21) {
-            showAlert("Horario Inválido", "Las entregas se realizan entre las 15:00 y las 21:00 hs.", "error");
+            showAlert("Horario Inválido", "Las entregas se realizan EXCLUSIVAMENTE entre las 15:00 y las 21:00 hs.", "error");
             return;
         }
 
-        // Validar Día (Lun-Sab)
-        const dayOfWeek = new Date(customerInfo.date).getDay();
-        if (dayOfWeek === 6) { // 6 = Domingo (new Date usa 0 para Domingo si es string ISO en algunos browsers, o Lunes si UTC... standard es 0=Sun, 6=Sat. Ojo timezone)
-           // Ajuste simple: Verificar dia de la semana
-           // Mejor dejar pasar y que backend/logística maneje excepciones o validación visual
+        // 2. VALIDAR DIA (Lun-Sab, NO Domingos)
+        // input date value is YYYY-MM-DD
+        const dateObj = new Date(customerInfo.date + 'T00:00:00'); // Force local time parsing to avoid timezone shift
+        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        
+        if (dayOfWeek === 0) {
+           showAlert("Día Inválido", "No realizamos entregas los domingos. Por favor seleccione de Lunes a Sábado.", "error");
+           return;
         }
         
         setIsCheckingOut(true);
@@ -561,7 +601,7 @@ const CartDrawer: React.FC = () => {
                 
                 // Agregar item de envío si se paga ahora
                 if (payShippingNow && shippingCost > 0) {
-                     items.push({ title: "Envío Moto CABA", unit_price: shippingCost, quantity: 1 });
+                     items.push({ title: "Envío Moto CABA (c/Recargo Lluvia si aplica)", unit_price: shippingCost, quantity: 1 });
                 }
 
                 const response = await fetch('/api/create_preference', { 
@@ -667,10 +707,24 @@ const CartDrawer: React.FC = () => {
                                                 <span className="text-gray-300">Costo Base:</span>
                                                 <span className="font-bold text-white">$7.500</span>
                                             </div>
-                                            <label className="flex items-center gap-2 cursor-pointer group">
-                                                <input type="checkbox" checked={isRaining} onChange={e => setIsRaining(e.target.checked)} className="accent-gold-500 w-4 h-4"/>
-                                                <span className={`text-sm ${isRaining ? 'text-blue-400 font-bold' : 'text-gray-400 group-hover:text-white'}`}>🌧️ Lluvia (+50% recargo)</span>
-                                            </label>
+                                            
+                                            {checkingWeather ? (
+                                                <div className="flex items-center gap-2 text-xs text-gold-500 animate-pulse">
+                                                    <Cloud size={12}/> Chequeando clima (weather.com)...
+                                                </div>
+                                            ) : (
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${isRaining ? 'bg-blue-500 border-blue-500' : 'border-neutral-500'}`}>
+                                                        {isRaining && <CheckCircle size={12} className="text-white"/>}
+                                                    </div>
+                                                    {/* Checkbox oculto, controlado por API weather */}
+                                                    <input type="checkbox" checked={isRaining} onChange={e => setIsRaining(e.target.checked)} className="hidden"/>
+                                                    <span className={`text-sm ${isRaining ? 'text-blue-400 font-bold flex items-center gap-2' : 'text-gray-400 group-hover:text-white'}`}>
+                                                        {isRaining ? <><CloudRain size={14}/> Lluvia detectada (+50%)</> : 'Clima despejado (Sin recargo)'}
+                                                    </span>
+                                                </label>
+                                            )}
+
                                             <div className="border-t border-neutral-700 pt-2 flex justify-between items-center text-sm">
                                                 <span className="text-gold-500 font-bold">Total Envío:</span>
                                                 <span className="text-gold-500 font-bold">{formatPrice(shippingCost)}</span>
@@ -684,8 +738,14 @@ const CartDrawer: React.FC = () => {
 
                                     {shippingMethod === 'interior' && (
                                         <div className="bg-blue-900/20 p-3 rounded border border-blue-800 text-xs text-blue-200">
-                                            <p className="flex items-start gap-2"><Truck className="flex-shrink-0 mt-0.5" size={14}/> Se cotiza por <strong>Via Cargo Online</strong>.</p>
-                                            <p className="mt-1 ml-6">El valor es aproximado. <strong>Se abona en destino</strong> al retirar/recibir.</p>
+                                            <p className="flex items-start gap-2 mb-2"><Truck className="flex-shrink-0 mt-0.5" size={14}/> <strong>Via Cargo Online</strong></p>
+                                            <div className="bg-black/40 p-2 rounded mb-2 border border-blue-900/50">
+                                                <p className="text-gray-400 text-[10px] uppercase">Estimación de Bultos</p>
+                                                <p className="font-bold">{totalItems} caja(s) aprox. (15x10x10 cm c/u)</p>
+                                                <p className="text-gray-400 text-[10px]">Volumen Total: {totalVolumeCm3} cm³</p>
+                                            </div>
+                                            <p>El valor se calcula en base a estos bultos.</p>
+                                            <p className="mt-1 font-bold text-gold-400">❗ SE ABONA EL ENVÍO EN DESTINO.</p>
                                         </div>
                                     )}
 
@@ -698,7 +758,7 @@ const CartDrawer: React.FC = () => {
                                     )}
 
                                     {/* FECHA Y HORA */}
-                                    <div className="flex gap-2 bg-neutral-800/50 p-2 rounded">
+                                    <div className="flex gap-2 bg-neutral-800/50 p-2 rounded border border-neutral-700">
                                         <div className="flex-1">
                                             <label className="text-[10px] text-gray-400 uppercase block mb-1">Fecha Entrega (Lun-Sab)</label>
                                             <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full bg-transparent text-white text-sm outline-none" value={customerInfo.date} onChange={e=>setCustomerInfo({...customerInfo,date:e.target.value})}/>
