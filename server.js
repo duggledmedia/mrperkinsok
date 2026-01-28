@@ -3,15 +3,9 @@ import cors from 'cors';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DB_PATH = path.join(__dirname, 'db.json');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,34 +13,16 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// --- DATABASE PERSISTENCE HELPER ---
-function loadDb() {
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      const data = fs.readFileSync(DB_PATH, 'utf8');
-      return JSON.parse(data);
-    } else {
-      // Create empty DB if not exists
-      fs.writeFileSync(DB_PATH, JSON.stringify({}, null, 2));
-      return {};
-    }
-  } catch (e) {
-    console.error("Error reading DB:", e);
-    return {};
-  }
+// --- CONFIGURACIÓN SUPABASE ---
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ ERROR CRÍTICO: Faltan credenciales de Supabase en .env (SUPABASE_URL, SUPABASE_KEY)");
 }
 
-function saveDb(data) {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error("Error saving DB:", e);
-  }
-}
-
-// Load initial data
-let productOverrides = loadDb();
-console.log(`📦 Base de datos cargada con ${Object.keys(productOverrides).length} modificaciones.`);
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+console.log("✅ Conectado a Supabase para gestión de productos.");
 
 // --- CONFIGURACIÓN MERCADOPAGO ---
 const accessToken = process.env.MP_ACCESS_TOKEN;
@@ -85,49 +61,106 @@ if (clientEmail && privateKey && calendarId) {
   console.warn("⚠️  ALERTA CALENDAR: Faltan credenciales en .env");
 }
 
-// --- RUTAS ---
+// --- RUTAS DE PRODUCTOS (SUPABASE) ---
 
-// 0. Product Management (CMS Persistence)
-app.get('/api/products', (req, res) => {
-  productOverrides = loadDb();
-  res.json(productOverrides);
+// 1. OBTENER PRODUCTOS
+app.get('/api/products', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('product_overrides')
+      .select('*');
+
+    if (error) throw error;
+
+    const overrides = {};
+    if (data) {
+        data.forEach(item => {
+            overrides[item.id] = item;
+        });
+    }
+    res.json(overrides);
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
-// Single Product Update
-app.post('/api/products', (req, res) => {
+// 2. ACTUALIZAR UN PRODUCTO
+app.post('/api/products', async (req, res) => {
   const { id, updates } = req.body;
   if (!id) return res.status(400).json({ error: 'Missing Product ID' });
-  
-  productOverrides = loadDb();
-  productOverrides[id] = { ...(productOverrides[id] || {}), ...updates };
-  saveDb(productOverrides);
-  
-  console.log(`📝 Producto actualizado [${id}]:`, updates);
-  res.json({ success: true, overrides: productOverrides });
-});
 
-// Bulk Product Update
-app.post('/api/bulk-update', (req, res) => {
-  const { updatesArray } = req.body; 
-  
-  if (!Array.isArray(updatesArray)) {
-    return res.status(400).json({ error: 'updatesArray must be an array' });
-  }
+  try {
+    const payload = {
+        id,
+        ...updates,
+        updated_at: new Date().toISOString()
+    };
 
-  productOverrides = loadDb();
-  
-  updatesArray.forEach(item => {
-    if (item.id && item.updates) {
-       productOverrides[item.id] = { ...(productOverrides[item.id] || {}), ...item.updates };
+    const { data, error } = await supabase
+        .from('product_overrides')
+        .upsert(payload)
+        .select();
+
+    if (error) throw error;
+
+    // Devolver overrides actualizados
+    const { data: allData } = await supabase.from('product_overrides').select('*');
+    const overrides = {};
+    if (allData) {
+        allData.forEach(item => {
+          overrides[item.id] = item;
+        });
     }
-  });
 
-  saveDb(productOverrides);
-  console.log(`📝 Actualización masiva procesada: ${updatesArray.length} productos.`);
-  res.json({ success: true, overrides: productOverrides });
+    console.log(`📝 Producto actualizado en Supabase [${id}]:`, updates);
+    res.json({ success: true, overrides });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
-// 1. Crear Preferencia de Pago (MercadoPago)
+// 3. ACTUALIZACIÓN MASIVA
+app.post('/api/bulk-update', async (req, res) => {
+  const { updatesArray } = req.body;
+  if (!Array.isArray(updatesArray)) return res.status(400).json({ error: 'Invalid data' });
+
+  try {
+    const upsertData = updatesArray
+      .filter(item => item.id && item.updates)
+      .map(item => ({
+        id: item.id,
+        ...item.updates,
+        updated_at: new Date().toISOString()
+      }));
+
+    if (upsertData.length > 0) {
+        const { error } = await supabase
+            .from('product_overrides')
+            .upsert(upsertData);
+        
+        if (error) throw error;
+    }
+
+    const { data: allData } = await supabase.from('product_overrides').select('*');
+    const overrides = {};
+    if (allData) {
+        allData.forEach(item => {
+          overrides[item.id] = item;
+        });
+    }
+
+    console.log(`📝 Actualización masiva en Supabase: ${upsertData.length} items.`);
+    res.json({ success: true, overrides });
+  } catch (error) {
+    console.error("Error bulk updating:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// --- RUTAS DE CHECKOUT Y CALENDARIO ---
+
 app.post('/api/create_preference', async (req, res) => {
   try {
     const { items, shippingCost, external_reference } = req.body;
@@ -175,7 +208,6 @@ app.post('/api/create_preference', async (req, res) => {
   }
 });
 
-// 2. Agendar Entrega (Google Calendar)
 app.post('/api/schedule_delivery', async (req, res) => {
   const { orderId, customerName, address, deliveryDate, items, total, totalCost, phone, paymentMethod, shippingMethod } = req.body;
 
@@ -185,8 +217,6 @@ app.post('/api/schedule_delivery', async (req, res) => {
   }
 
   try {
-    console.log(`📅 Agendando entrega para ${customerName} el ${deliveryDate}`);
-
     const startDate = `${deliveryDate}T09:00:00-03:00`;
     const endDate = `${deliveryDate}T18:00:00-03:00`;
 
@@ -210,7 +240,7 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
       description: description,
       start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
       end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
-      colorId: '5', // 5 = Yellow (Pending default)
+      colorId: '5',
     };
 
     const response = await calendarClient.events.insert({
@@ -227,30 +257,20 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
   }
 });
 
-// 3. Update Order Status (Sync Color in Calendar)
 app.post('/api/update_order_status', async (req, res) => {
     const { googleEventId, status } = req.body;
 
     if (!calendarClient) return res.status(503).json({ error: "Calendar not configured" });
     if (!googleEventId) return res.status(400).json({ error: "Missing Event ID" });
 
-    // Map status to Google Calendar Colors
-    const colorMap = {
-        'pending': '5',   // Banana (Yellow)
-        'shipped': '9',   // Blueberry (Blue)
-        'delivered': '10',// Basil (Green)
-        'cancelled': '11' // Tomato (Red)
-    };
-
-    const colorId = colorMap[status] || '8'; // Default Graphite
+    const colorMap = { 'pending': '5', 'shipped': '9', 'delivered': '10', 'cancelled': '11' };
+    const colorId = colorMap[status] || '8';
 
     try {
         await calendarClient.events.patch({
             calendarId: calendarId,
             eventId: googleEventId,
-            resource: {
-                colorId: colorId
-            }
+            resource: { colorId: colorId }
         });
         console.log(`🔄 Estado actualizado [${status}] para evento ${googleEventId}`);
         res.json({ success: true });
@@ -261,12 +281,6 @@ app.post('/api/update_order_status', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
-  console.log(`   Base de datos: ${DB_PATH}`);
-  console.log(`   Rutas disponibles:`);
-  console.log(`   - GET/POST /api/products`);
-  console.log(`   - POST /api/bulk-update`);
-  console.log(`   - POST /api/create_preference`);
-  console.log(`   - POST /api/schedule_delivery`);
-  console.log(`   - POST /api/update_order_status\n`);
+  console.log(`\n🚀 Servidor Local Mr. Perkins corriendo en: http://localhost:${port}`);
+  console.log(`   Modo: SUPABASE (Sincronizado con Producción)`);
 });

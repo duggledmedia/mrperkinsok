@@ -109,7 +109,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const fetchUpdates = async () => {
-      // Pause automatic polling if user recently updated locally
+      // Pause automatic polling if user recently updated locally (debounce)
       if (Date.now() - lastUpdateRef.current < 5000) {
           return; 
       }
@@ -131,17 +131,28 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   productMap.delete(id);
               } else {
                   const existing = productMap.get(id);
-                  // Ensure margins are numbers, fallback to defaults if null/undefined
-                  const marginRetail = data.margin_retail !== undefined ? Number(data.margin_retail) : (existing?.margin_retail ?? 50);
-                  const marginWholesale = data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : (existing?.margin_wholesale ?? 15);
+                  
+                  // CRITICAL FIX: Handle null vs undefined vs 0
+                  // Supabase returns null for columns that are not set. Number(null) is 0.
+                  // We only want to use data.margin if it is NOT null and NOT undefined.
+                  // If it is null, we fallback to existing or default.
+                  
+                  const getMargin = (newVal: any, existingVal: number | undefined, defaultVal: number) => {
+                      if (newVal !== null && newVal !== undefined) return Number(newVal);
+                      if (existingVal !== undefined) return existingVal;
+                      return defaultVal;
+                  };
+
+                  const marginRetail = getMargin(data.margin_retail, existing?.margin_retail, 50);
+                  const marginWholesale = getMargin(data.margin_wholesale, existing?.margin_wholesale, 15);
 
                   if (existing) {
                       // Update existing
                       productMap.set(id, { 
                           ...existing, 
                           ...data,
-                          precio_usd: data.precio_usd !== undefined ? Number(data.precio_usd) : existing.precio_usd,
-                          stock: data.stock !== undefined ? Number(data.stock) : existing.stock,
+                          precio_usd: data.precio_usd !== undefined && data.precio_usd !== null ? Number(data.precio_usd) : existing.precio_usd,
+                          stock: data.stock !== undefined && data.stock !== null ? Number(data.stock) : existing.stock,
                           margin_retail: marginRetail,
                           margin_wholesale: marginWholesale
                       });
@@ -169,8 +180,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           setProducts(Array.from(productMap.values()));
           setSyncStatus('synced');
         } else {
-            // API Error (e.g. 500 if Blob not configured)
-            // Don't overwrite local products, just mark error
+            // API Error (e.g. 500 if DB not configured)
             setSyncStatus('error');
         }
       } catch (error) {
@@ -275,7 +285,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       } catch (e) {
         console.error("Failed to persist", e);
         setSyncStatus('error');
-        showAlert("Error de Conexión", "No se pudo guardar en el servidor. Revise configuración de Vercel Blob.", "error");
+        showAlert("Error de Conexión", "No se pudo guardar en el servidor. Revise la consola.", "error");
       }
   };
 
