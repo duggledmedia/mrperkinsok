@@ -45,7 +45,7 @@ export default async function handler(req, res) {
        // Regex para extraer datos
        const idMatch = desc.match(/🆔 ID: (.*)/);
        const clientMatch = desc.match(/👤 Cliente: (.*)/);
-       const phoneMatch = desc.match(/📞 Teléfono: (.*)/);
+       const phoneMatch = desc.match(/📞 Teléfono:(.*)/); // More lenient regex
        const totalMatch = desc.match(/💰 Total: \$(.*)/);
        const costMatch = desc.match(/📉 Costo: \$(.*)/);
        const paymentMatch = desc.match(/💳 Pago: (.*)/);
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
        return {
          id: idMatch[1].trim(),
          customerName: clientMatch ? clientMatch[1].trim() : 'Desconocido',
-         phone: phoneMatch ? phoneMatch[1].trim() : '', // Fix phone parsing
+         phone: phoneMatch ? phoneMatch[1].trim() : '', 
          total: totalMatch ? Number(totalMatch[1].replace(/\./g,'').trim()) : 0,
          cost: costMatch ? Number(costMatch[1].replace(/\./g,'').trim()) : 0,
          status: 'pending', // Por defecto pending al leer del calendario

@@ -102,11 +102,8 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS.map(p => ({
-      ...p,
-      margin_retail: 50,
-      margin_wholesale: 15
-  })));
+  // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL INICIO
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
 
   useEffect(() => {
     const fetchUpdates = async () => {
@@ -115,8 +112,10 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         if (response.ok) {
           const overrides = await response.json();
           const productMap = new Map<string, Product>();
+          
+          // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL ACTUALIZAR
           PRODUCTS.forEach(p => {
-             productMap.set(p.id, { ...p, margin_retail: 50, margin_wholesale: 15 });
+             productMap.set(p.id, { ...p }); 
           });
 
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
@@ -137,8 +136,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           presentacion_ml: 100,
                           genero: 'Unisex',
                           image: 'https://via.placeholder.com/150',
-                          margin_retail: 50,
-                          margin_wholesale: 15,
+                          // No forzamos margenes aqui tampoco
                           ...data 
                       });
                   }
@@ -198,7 +196,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale ?? 15) : (product.margin_retail ?? 50);
+    // CAMBIADO: Default es 0 si no existe margen configurado
+    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale || 0) : (product.margin_retail || 0);
     const costoEnPesos = product.precio_usd * dolarBlue;
     return Math.ceil(costoEnPesos * (1 + margin / 100));
   };
@@ -662,7 +661,10 @@ const AdminProductModal: React.FC<{
             setFormData({
                 nombre: '', marca: '', precio_usd: 0, stock: 0, 
                 presentacion_ml: 100, genero: 'Unisex', 
-                tags_olfativos: [], margin_retail: 50, margin_wholesale: 15,
+                tags_olfativos: [], 
+                // AQUI TAMBIEN ELIMINADOS LOS DEFAULTS DE 50/15
+                margin_retail: 0, 
+                margin_wholesale: 0,
                 image: 'https://via.placeholder.com/300?text=No+Image'
             });
         }
@@ -680,8 +682,8 @@ const AdminProductModal: React.FC<{
                 genero: formData.genero || 'Unisex',
                 tags_olfativos: formData.tags_olfativos || [],
                 image: formData.image,
-                margin_retail: Number(formData.margin_retail) || 50,
-                margin_wholesale: Number(formData.margin_wholesale) || 15
+                margin_retail: Number(formData.margin_retail) || 0, // DEFAULT 0
+                margin_wholesale: Number(formData.margin_wholesale) || 0 // DEFAULT 0
             } as Product;
             onCreate(newProduct);
         } else if (product && onSave) {
@@ -726,11 +728,13 @@ const AdminProductModal: React.FC<{
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-green-500 uppercase font-bold">Margen Minorista (%)</label>
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 50} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
+                             {/* DEFAULT 0 EN UI */}
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 0} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-blue-500 uppercase font-bold">Margen Mayorista (%)</label>
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 15} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
+                             {/* DEFAULT 0 EN UI */}
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 0} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
                         </div>
                         <div className="col-span-2">
                              <label className="text-xs text-gray-500 uppercase">Tags Olfativos</label>
@@ -1084,7 +1088,7 @@ const AdminPanel: React.FC = () => {
                                         </thead>
                                         <tbody>
                                             {order.items.map((item, idx) => {
-                                                const unitPrice = item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100);
+                                                const unitPrice = item.precio_usd * dolarBlue * (1 + (item.margin_retail||0)/100);
                                                 return (
                                                     <tr key={idx} className="border-b border-neutral-800/50 last:border-0">
                                                         <td className="p-2 text-white">{item.nombre}</td>
@@ -1136,7 +1140,7 @@ const AdminPanel: React.FC = () => {
             <div className="md:hidden grid grid-cols-1 gap-4">
                 {filteredInventory.map(product => {
                      const costoARS = Math.ceil(product.precio_usd * dolarBlue);
-                     const retailPrice = costoARS * (1 + (product.margin_retail || 50)/100);
+                     const retailPrice = costoARS * (1 + (product.margin_retail || 0)/100);
                      return (
                         <div key={product.id} className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-xl flex gap-4 items-center">
                             <div className="w-16 h-16 rounded-lg bg-black overflow-hidden flex-shrink-0 border border-neutral-800">
@@ -1177,7 +1181,8 @@ const AdminPanel: React.FC = () => {
                  <tbody className="divide-y divide-neutral-800">
                    {filteredInventory.map(product => {
                        const costoARS = Math.ceil(product.precio_usd * dolarBlue);
-                       const retailPrice = costoARS * (1 + (product.margin_retail || 50)/100);
+                       // CAMBIADO: Default es 0
+                       const retailPrice = costoARS * (1 + (product.margin_retail || 0)/100);
                        
                        return (
                          <tr key={product.id} className="hover:bg-neutral-900/30 transition-colors group">
@@ -1188,7 +1193,7 @@ const AdminPanel: React.FC = () => {
                                     <td className="p-4 text-center font-bold text-gray-300">${product.precio_usd}</td>
                                     <td className="p-4 text-center text-gray-600 font-mono text-xs">{formatPrice(costoARS)}</td>
                                     
-                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail || 50}</span><span className="text-xs text-gray-500">%</span></div></td>
+                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail || 0}</span><span className="text-xs text-gray-500">%</span></div></td>
                                     <td className="p-4 text-center bg-neutral-800/30 text-green-400 font-bold">{formatPrice(retailPrice)}</td>
                                     
                                     <td className="p-4 text-center"><span className={`font-bold ${product.stock === 0 ? 'text-red-500' : 'text-white'}`}>{product.stock}</span></td>
