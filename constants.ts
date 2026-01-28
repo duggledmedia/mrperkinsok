@@ -218,8 +218,9 @@ const RAW_PRODUCTS = FILES_LIST.map(file => {
   return basicInfo;
 });
 
-export const PRODUCTS: Product[] = RAW_PRODUCTS.map((p, index) => ({
+export const PRODUCTS: Product[] = RAW_PRODUCTS.map((p) => ({
     ...p,
-    id: `prod-${index}`,
+    // ID generation based on filename to ensure stability across reloads/reorders
+    id: p.imageFile.replace('.jpg', '').replace(/[^a-zA-Z0-9-_]/g, ''), 
     image: `${PRODUCT_IMAGES_BASE_URL}${p.imageFile}`
 }));
