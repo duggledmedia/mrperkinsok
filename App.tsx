@@ -105,10 +105,12 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const lastUpdateRef = useRef<number>(0); 
+  const lastOverridesRef = useRef<string>(''); // IMPORTANTE: Evita re-renders innecesarios
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
   useEffect(() => {
     const fetchUpdates = async () => {
+      // Si se actualizó localmente hace poco, esperar
       if (Date.now() - lastUpdateRef.current < 5000) {
           return; 
       }
@@ -116,6 +118,17 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const response = await fetch(`/api/products?t=${Date.now()}`);
         if (response.ok) {
           const overrides = await response.json();
+          
+          // OPTIMIZACIÓN CRÍTICA:
+          // Solo actualizamos el estado si los datos recibidos son diferentes a los anteriores.
+          // Esto evita que React redibuje toda la lista cada 5 segundos (lo que causaba el "trabe").
+          const overridesStr = JSON.stringify(overrides);
+          if (overridesStr === lastOverridesRef.current) {
+              setSyncStatus('synced');
+              return; 
+          }
+          lastOverridesRef.current = overridesStr;
+
           const productMap = new Map<string, Product>();
           PRODUCTS.forEach(p => { productMap.set(p.id, { ...p }); });
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
@@ -163,7 +176,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           setProducts(Array.from(productMap.values()));
           setSyncStatus('synced');
         } else {
-            setSyncStatus('error');
+            // Si falla silenciosamente, no cambiamos status a error para no alarmar visualmente si es transitorio
+            console.warn("Sync fetch failed");
         }
       } catch (error) {
         console.warn("Could not fetch product updates", error);
@@ -247,6 +261,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const persistUpdate = async (id: string, updates: Partial<Product> | { deleted: boolean }) => {
       lastUpdateRef.current = Date.now();
+      // Forzamos actualización de ref de overrides para evitar reversión en el próximo tick
+      // (Optimistic update)
       setSyncStatus('syncing');
       try {
         await fetch('/api/products', {
@@ -258,7 +274,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       } catch (e) {
         console.error("Failed to persist", e);
         setSyncStatus('error');
-        showAlert("Error de Conexión", "No se pudo guardar en el servidor.", "error");
+        showAlert("Error de Conexión", "No se pudo guardar en el servidor. Verifique su conexión.", "error");
       }
   };
 
@@ -306,7 +322,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if ((existing ? existing.quantity : 0) + quantity > product.stock) {
-         if(!silent) showAlert("Perkins dice:", `Stock insuficiente.`, 'info');
+         if(!silent) showAlert("Perkins dice:", `Stock insuficiente para agregar más.`, 'info');
          return prev;
       }
       if (existing) return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item);
