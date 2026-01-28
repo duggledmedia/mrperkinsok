@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -46,6 +46,7 @@ interface AppContextType {
   setIsCartOpen: (isOpen: boolean) => void;
   orders: Order[];
   addOrder: (order: Order) => void;
+  updateOrderStatus: (orderId: string, status: 'pending' | 'shipped' | 'delivered') => void;
   fetchOrdersFromCalendar: () => void;
   
   // Auth & User Management
@@ -280,6 +281,12 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.id !== productId));
   const clearCart = () => setCart([]);
   const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
+  
+  const updateOrderStatus = (orderId: string, status: 'pending' | 'shipped' | 'delivered') => {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      // NOTA: Para persistir el cambio de estado en Google Calendar se requeriría un endpoint adicional de PATCH.
+      // Por ahora, el cambio es local para la sesión.
+  };
 
   const login = (email: string, pass: string): boolean => {
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.pass === pass);
@@ -300,7 +307,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <AppContext.Provider value={{ 
       products, updateProduct, addNewProduct, deleteProduct, bulkUpdateMargins,
-      cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, fetchOrdersFromCalendar,
+      cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, updateOrderStatus, fetchOrdersFromCalendar,
       currentUser, login, logout, users, addUser, toggleUserStatus, deleteUser, isAdmin: currentUser?.role === 'admin',
       dolarBlue, setDolarBlue, formatPrice, calculateFinalPriceARS,
       pricingMode, setPricingMode, viewMode, setViewMode,
@@ -743,7 +750,7 @@ const AdminPanel: React.FC = () => {
   const { 
     orders, currentUser, login, logout, formatPrice, products, updateProduct, addNewProduct, deleteProduct,
     bulkUpdateMargins, users, addUser, toggleUserStatus, deleteUser,
-    showAlert, addOrder, dolarBlue, setDolarBlue
+    showAlert, addOrder, dolarBlue, setDolarBlue, updateOrderStatus, calculateFinalPriceARS
   } = useStore();
 
   const [email, setEmail] = useState('');
@@ -761,7 +768,11 @@ const AdminPanel: React.FC = () => {
   const [newUserRole, setNewUserRole] = useState<UserRole>('seller');
 
   const [showManualOrder, setShowManualOrder] = useState(false);
-  const [manualOrderData, setManualOrderData] = useState({ clientName: '', total: 0 });
+  const [manualCart, setManualCart] = useState<CartItem[]>([]);
+  const [manualCustomerInfo, setManualCustomerInfo] = useState({ name: '', phone: '', address: '', city: '', date: new Date().toISOString().split('T')[0] });
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<PaymentMethod>('cash');
+  const [manualShippingMethod, setManualShippingMethod] = useState<ShippingMethod>('caba');
+  const [manualSearch, setManualSearch] = useState('');
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
@@ -776,23 +787,67 @@ const AdminPanel: React.FC = () => {
      setNewUserEmail(''); setNewUserPass(''); setNewUserName('');
   };
 
-  const handleManualOrder = () => {
-      if(!manualOrderData.clientName || manualOrderData.total <= 0) return;
+  const addToManualCart = (product: Product) => {
+      setManualCart(prev => {
+          const existing = prev.find(p => p.id === product.id);
+          if (existing) return prev.map(p => p.id === product.id ? {...p, quantity: p.quantity + 1} : p);
+          return [...prev, {...product, quantity: 1}];
+      });
+  };
+
+  const removeFromManualCart = (id: string) => {
+      setManualCart(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleManualOrder = async () => {
+      if(!manualCustomerInfo.name || manualCart.length === 0) { showAlert("Error", "Ingrese nombre y productos.", "error"); return; }
+      
+      const total = manualCart.reduce((acc, item) => acc + (calculateFinalPriceARS(item) * item.quantity), 0);
+      const orderId = `MAN-${Date.now()}`;
+      
       const newOrder: Order = { 
-        id: `MAN-${Date.now()}`, 
-        customerName: manualOrderData.clientName, 
-        total: manualOrderData.total, 
-        items: [], 
-        address: 'Venta Manual / Mostrador', 
-        deliveryDate: new Date().toISOString().split('T')[0], 
+        id: orderId, 
+        customerName: manualCustomerInfo.name,
+        phone: manualCustomerInfo.phone,
+        address: manualCustomerInfo.address,
+        city: manualCustomerInfo.city,
+        total, 
+        items: manualCart, 
+        deliveryDate: manualCustomerInfo.date, 
         status: 'delivered', 
         timestamp: Date.now(), 
         type: 'retail', 
         createdBy: currentUser?.email,
-        paymentMethod: 'cash',
-        shippingMethod: 'caba'
+        paymentMethod: manualPaymentMethod,
+        shippingMethod: manualShippingMethod
       };
-      addOrder(newOrder); setShowManualOrder(false); setManualOrderData({ clientName: '', total: 0 }); showAlert("Pedido Agregado", "La venta manual se ha registrado correctamente.", "success");
+
+      try {
+          await fetch('/api/schedule_delivery', { 
+             method: 'POST', 
+             headers: { 'Content-Type': 'application/json' }, 
+             body: JSON.stringify({
+                 orderId,
+                 customerName: manualCustomerInfo.name,
+                 phone: manualCustomerInfo.phone,
+                 address: manualCustomerInfo.address,
+                 city: manualCustomerInfo.city,
+                 deliveryDate: manualCustomerInfo.date,
+                 items: manualCart,
+                 total,
+                 paymentMethod: manualPaymentMethod,
+                 shippingMethod: manualShippingMethod
+             }) 
+          });
+
+          addOrder(newOrder); 
+          setShowManualOrder(false); 
+          setManualCart([]);
+          setManualCustomerInfo({ name: '', phone: '', address: '', city: '', date: new Date().toISOString().split('T')[0] });
+          showAlert("Venta Registrada", "La orden manual se ha guardado correctamente.", "success");
+      } catch (e) {
+          showAlert("Error", "No se pudo guardar la orden manual.", "error");
+      }
   };
 
   if (!currentUser) {
@@ -845,14 +900,13 @@ const AdminPanel: React.FC = () => {
           <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Box size={20} /><span className="font-medium">Inventario</span></button>
           {currentUser.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Users size={20} /><span className="font-medium">Usuarios</span></button>}
         </nav>
-        <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate">{currentUser.name}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
+        <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate flex items-center gap-2">{currentUser.name} {isApiConfigured && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Sistema IA Operativo"></span>}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
       </aside>
 
       <main className="flex-1 p-4 md:p-8 ml-0 md:ml-64 pb-24 md:pb-8 overflow-y-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
-            {isApiConfigured && <span className="text-green-500 text-xs flex items-center gap-1"><CheckCircle size={12}/> Sistema IA Operativo</span>}
           </div>
           {activeTab === 'inventory' && currentUser.role === 'admin' && (
              <div className="bg-black border border-gold-600/30 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_15px_rgba(212,175,55,0.1)] w-full md:w-auto justify-between">
@@ -870,47 +924,142 @@ const AdminPanel: React.FC = () => {
                         <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Pendientes</h3><span className="text-xl md:text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span></div>
                         <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Facturación</h3><span className="text-lg md:text-xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span></div>
                      </div>
-                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nuevo Pedido</button>
+                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nueva Venta</button>
                  </div>
+                 
                  {showManualOrder && (
                      <div className="bg-neutral-800/50 p-6 rounded-lg border border-gold-600/30 mb-6 animate-fade-in">
-                         <h3 className="text-lg font-bold text-white mb-4">Cargar Pedido Manual</h3>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                             <input type="text" placeholder="Nombre Cliente" value={manualOrderData.clientName} onChange={e => setManualOrderData({...manualOrderData, clientName: e.target.value})} className="bg-black border border-neutral-700 p-3 rounded text-white" />
-                             <div className="flex items-center gap-2"><span className="text-gray-400">ARS</span><input type="number" placeholder="Total ARS" value={manualOrderData.total} onChange={e => setManualOrderData({...manualOrderData, total: Number(e.target.value)})} className="bg-black border border-neutral-700 p-3 rounded text-white flex-1" /></div>
-                             <button onClick={handleManualOrder} className="bg-green-600 hover:bg-green-500 text-white font-bold rounded p-3">Confirmar Venta</button>
+                         <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CreditCard className="text-gold-500" /> Punto de Venta Manual</h3>
+                         
+                         {/* BUSCADOR PRODUCTOS MANUAL */}
+                         <div className="mb-6 bg-black p-4 rounded border border-neutral-700">
+                             <div className="flex gap-2 mb-2">
+                                <Search className="text-gray-500" />
+                                <input className="bg-transparent text-white outline-none w-full" placeholder="Buscar producto para agregar..." value={manualSearch} onChange={e=>setManualSearch(e.target.value)} />
+                             </div>
+                             {manualSearch && (
+                                 <div className="max-h-40 overflow-y-auto mt-2 border-t border-neutral-800 pt-2">
+                                     {products.filter(p=>p.nombre.toLowerCase().includes(manualSearch.toLowerCase()) || p.marca.toLowerCase().includes(manualSearch.toLowerCase())).map(p => (
+                                         <div key={p.id} className="flex justify-between items-center p-2 hover:bg-neutral-800 cursor-pointer text-sm text-gray-300" onClick={() => { addToManualCart(p); setManualSearch(''); }}>
+                                             <span>{p.nombre}</span>
+                                             <span className="text-gold-500">{formatPrice(calculateFinalPriceARS(p))}</span>
+                                         </div>
+                                     ))}
+                                 </div>
+                             )}
+                         </div>
+
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                             {/* DATOS CLIENTE MANUAL */}
+                             <div className="space-y-3">
+                                 <h4 className="text-xs uppercase text-gold-500 font-bold tracking-widest mb-2">Datos del Cliente</h4>
+                                 <input type="text" placeholder="Nombre Cliente" value={manualCustomerInfo.name} onChange={e => setManualCustomerInfo({...manualCustomerInfo, name: e.target.value})} className="w-full bg-black border border-neutral-700 p-2 rounded text-white text-sm" />
+                                 <input type="text" placeholder="Teléfono" value={manualCustomerInfo.phone} onChange={e => setManualCustomerInfo({...manualCustomerInfo, phone: e.target.value})} className="w-full bg-black border border-neutral-700 p-2 rounded text-white text-sm" />
+                                 <div className="flex gap-2">
+                                    <input type="text" placeholder="Dirección" value={manualCustomerInfo.address} onChange={e => setManualCustomerInfo({...manualCustomerInfo, address: e.target.value})} className="flex-[2] bg-black border border-neutral-700 p-2 rounded text-white text-sm" />
+                                    <input type="text" placeholder="Ciudad" value={manualCustomerInfo.city} onChange={e => setManualCustomerInfo({...manualCustomerInfo, city: e.target.value})} className="flex-1 bg-black border border-neutral-700 p-2 rounded text-white text-sm" />
+                                 </div>
+                                 <div className="flex gap-2">
+                                     <select value={manualPaymentMethod} onChange={e=>setManualPaymentMethod(e.target.value as PaymentMethod)} className="w-full bg-black border border-neutral-700 p-2 rounded text-white text-sm"><option value="cash">Efectivo</option><option value="mercadopago">MercadoPago</option></select>
+                                     <select value={manualShippingMethod} onChange={e=>setManualShippingMethod(e.target.value as ShippingMethod)} className="w-full bg-black border border-neutral-700 p-2 rounded text-white text-sm"><option value="caba">Moto CABA</option><option value="interior">Envío Interior</option></select>
+                                 </div>
+                             </div>
+
+                             {/* ITEMS MANUAL */}
+                             <div className="bg-black/40 border border-neutral-800 p-4 rounded flex flex-col h-full">
+                                 <h4 className="text-xs uppercase text-gold-500 font-bold tracking-widest mb-2">Resumen Orden</h4>
+                                 <div className="flex-1 overflow-y-auto mb-4 space-y-2 max-h-40">
+                                     {manualCart.length === 0 ? <p className="text-gray-600 text-xs italic">Agregue productos...</p> : manualCart.map(item => (
+                                         <div key={item.id} className="flex justify-between items-center text-sm text-gray-300 border-b border-neutral-800 pb-1">
+                                             <span>{item.quantity}x {item.nombre}</span>
+                                             <div className="flex items-center gap-2">
+                                                 <span>{formatPrice(calculateFinalPriceARS(item) * item.quantity)}</span>
+                                                 <button onClick={() => removeFromManualCart(item.id)} className="text-red-500"><Trash2 size={12}/></button>
+                                             </div>
+                                         </div>
+                                     ))}
+                                 </div>
+                                 <div className="pt-2 border-t border-neutral-700 flex justify-between items-center text-white font-bold text-lg">
+                                     <span>Total:</span>
+                                     <span>{formatPrice(manualCart.reduce((acc, i) => acc + (calculateFinalPriceARS(i) * i.quantity), 0))}</span>
+                                 </div>
+                                 <button onClick={handleManualOrder} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded mt-3">Confirmar Venta</button>
+                             </div>
                          </div>
                      </div>
                  )}
+
                  <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden">
                     {orders.length === 0 ? <div className="p-12 text-center text-gray-500"><ClipboardList size={48} className="mx-auto mb-4 opacity-20" /><p>No hay pedidos registrados.</p></div> : (
                       <div className="divide-y divide-neutral-800">{orders.map(order => (
                           <div key={order.id} className="p-4 md:p-6 hover:bg-neutral-900/50 transition-colors">
-                            <div className="flex flex-col md:flex-row justify-between mb-2 gap-2">
-                               <div>
-                                   <div className="flex items-center gap-3 mb-1">
-                                       <span className="text-gold-500 font-bold text-sm">{order.id}</span>
-                                       <span className="bg-yellow-900/30 text-yellow-500 text-[10px] px-2 py-0.5 rounded border border-yellow-900/50 uppercase">{order.status}</span>
+                            <div className="flex flex-col md:flex-row justify-between mb-2 gap-4">
+                               <div className="flex-1">
+                                   <div className="flex items-center gap-3 mb-2">
+                                       <span className="text-gold-500 font-bold text-sm bg-gold-900/20 px-2 rounded">{order.id}</span>
+                                       <select 
+                                            value={order.status} 
+                                            onChange={(e) => updateOrderStatus(order.id, e.target.value as 'pending'|'shipped'|'delivered')}
+                                            className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold outline-none cursor-pointer ${
+                                                order.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-900' :
+                                                order.status === 'shipped' ? 'bg-blue-900/30 text-blue-500 border-blue-900' :
+                                                'bg-green-900/30 text-green-500 border-green-900'
+                                            }`}
+                                       >
+                                           <option value="pending">Pendiente</option>
+                                           <option value="shipped">Enviado</option>
+                                           <option value="delivered">Entregado / Cobrado</option>
+                                       </select>
                                    </div>
-                                   <h4 className="text-white font-medium">{order.customerName}</h4>
-                                   <p className="text-gray-500 text-xs flex items-center gap-1 mt-1"><MapPin size={10}/> {order.address}, {order.city}</p>
-                                   <div className="flex gap-2 mt-1">
-                                      {order.paymentMethod === 'mercadopago' ? 
-                                          <span className="text-[10px] flex items-center gap-1 text-blue-400 border border-blue-900 px-1 rounded bg-blue-900/20"><CreditCard size={8}/> MP</span> : 
-                                          <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><Banknote size={8}/> Efectivo</span>
-                                      }
-                                      {order.shippingMethod === 'caba' ? 
-                                          <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={8}/> Moto</span> : 
-                                          <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><Box size={8}/> Encomienda</span>
-                                      }
+                                   
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-400">
+                                       <div>
+                                            <h4 className="text-white font-bold mb-1 flex items-center gap-2"><UserIcon size={12}/> {order.customerName}</h4>
+                                            <p className="flex items-center gap-2"><Phone size={12}/> {order.phone || 'Sin teléfono'}</p>
+                                            <p className="flex items-center gap-2"><MapPin size={12}/> {order.address}, {order.city}</p>
+                                       </div>
+                                       <div>
+                                            <div className="flex gap-2 mb-1">
+                                                {order.paymentMethod === 'mercadopago' ? 
+                                                    <span className="text-[10px] flex items-center gap-1 text-blue-400 border border-blue-900 px-1 rounded bg-blue-900/20"><CreditCard size={10}/> MP</span> : 
+                                                    <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><Banknote size={10}/> Efectivo</span>
+                                                }
+                                                {order.shippingMethod === 'caba' ? 
+                                                    <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={10}/> Moto</span> : 
+                                                    <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><Box size={10}/> Interior</span>
+                                                }
+                                            </div>
+                                            <p className="flex items-center gap-2"><Clock size={12}/> Entrega: {order.deliveryDate}</p>
+                                       </div>
                                    </div>
                                </div>
-                               <div className="flex justify-between md:block text-right mt-2 md:mt-0">
-                                   <div className="text-gold-500 font-bold text-xl">{formatPrice(order.total)}</div>
-                                   <div className="text-xs text-gray-500">{order.deliveryDate}</div>
+                               <div className="flex flex-col justify-between items-end min-w-[120px]">
+                                   <div className="text-gold-500 font-bold text-2xl">{formatPrice(order.total)}</div>
                                </div>
                             </div>
-                            {order.items.length > 0 && (<div className="bg-neutral-900/50 rounded p-3 text-sm mt-3"><ul className="space-y-1">{order.items.map((item, idx) => (<li key={idx} className="flex justify-between text-gray-300"><span>{item.quantity}x {item.nombre}</span><span>{formatPrice((item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100)) * item.quantity)}</span></li>))}</ul></div>)}
+                            
+                            {/* ITEMS TABLE IN ORDER */}
+                            {order.items.length > 0 && (
+                                <div className="mt-4 bg-black/40 rounded border border-neutral-800 overflow-hidden">
+                                    <table className="w-full text-left text-xs text-gray-400">
+                                        <thead className="bg-neutral-800 text-gray-500">
+                                            <tr><th className="p-2">Producto</th><th className="p-2 text-center">Cant</th><th className="p-2 text-right">Subtotal</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            {order.items.map((item, idx) => {
+                                                const unitPrice = item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100);
+                                                return (
+                                                    <tr key={idx} className="border-b border-neutral-800/50 last:border-0">
+                                                        <td className="p-2 text-white">{item.nombre}</td>
+                                                        <td className="p-2 text-center">{item.quantity}</td>
+                                                        <td className="p-2 text-right text-gold-500">{formatPrice(unitPrice * item.quantity)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -919,7 +1068,6 @@ const AdminPanel: React.FC = () => {
             </div>
         )}
 
-        {/* ... (Rest of AdminPanel logic remains same) ... */}
         {activeTab === 'inventory' && (
           <div className="space-y-6">
              {currentUser.role === 'admin' && (
