@@ -23,6 +23,46 @@ const INITIAL_USERS: User[] = [
   }
 ];
 
+// --- ERROR BOUNDARY ---
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-black text-white p-4 text-center">
+          <div>
+            <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
+            <h1 className="text-xl font-bold mb-2">Algo salió mal.</h1>
+            <p className="text-gray-400 mb-4">La aplicación ha encontrado un error inesperado.</p>
+            <button onClick={() => window.location.reload()} className="bg-gold-600 text-black px-4 py-2 rounded font-bold">Recargar Página</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // --- CONTEXT ---
 interface AlertData {
   isOpen: boolean;
@@ -102,7 +142,7 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
   );
 };
 
-const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const lastUpdateRef = useRef<number>(0); 
   const lastOverridesRef = useRef<string>(''); // IMPORTANTE: Evita re-renders innecesarios
@@ -110,7 +150,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const fetchUpdates = async () => {
-      // Si se actualizó localmente hace poco, esperar
       if (Date.now() - lastUpdateRef.current < 5000) {
           return; 
       }
@@ -118,10 +157,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const response = await fetch(`/api/products?t=${Date.now()}`);
         if (response.ok) {
           const overrides = await response.json();
-          
-          // OPTIMIZACIÓN CRÍTICA:
-          // Solo actualizamos el estado si los datos recibidos son diferentes a los anteriores.
-          // Esto evita que React redibuje toda la lista cada 5 segundos (lo que causaba el "trabe").
           const overridesStr = JSON.stringify(overrides);
           if (overridesStr === lastOverridesRef.current) {
               setSyncStatus('synced');
@@ -176,7 +211,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           setProducts(Array.from(productMap.values()));
           setSyncStatus('synced');
         } else {
-            // Si falla silenciosamente, no cambiamos status a error para no alarmar visualmente si es transitorio
             console.warn("Sync fetch failed");
         }
       } catch (error) {
@@ -195,12 +229,19 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
+  // ROBUST Initialization of Dolar Blue
   const [dolarBlue, setDolarBlueState] = useState(() => {
-      const saved = localStorage.getItem('dolarBlue');
-      return saved ? Number(saved) : 1230; 
+      try {
+          const saved = localStorage.getItem('dolarBlue');
+          const parsed = saved ? Number(saved) : 0;
+          return !isNaN(parsed) && parsed > 0 ? parsed : 1230; 
+      } catch {
+          return 1230;
+      }
   });
+  
   const setDolarBlue = (val: number) => {
-      if(!val || val <= 0) return;
+      if(!val || val <= 0 || isNaN(val)) return;
       setDolarBlueState(val);
       localStorage.setItem('dolarBlue', String(val));
   };
@@ -257,12 +298,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return Math.ceil(product.precio_usd * safeDolar);
   };
 
-  const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
+  const formatPrice = (ars: number) => {
+      if (isNaN(ars)) return "$ -";
+      return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
+  }
 
   const persistUpdate = async (id: string, updates: Partial<Product> | { deleted: boolean }) => {
       lastUpdateRef.current = Date.now();
-      // Forzamos actualización de ref de overrides para evitar reversión en el próximo tick
-      // (Optimistic update)
       setSyncStatus('syncing');
       try {
         await fetch('/api/products', {
@@ -594,8 +636,9 @@ const CartDrawer: React.FC = () => {
             });
 
             if (!scheduleResponse.ok) {
+                // Try to parse error JSON, but be safe
                 const errorData = await scheduleResponse.json().catch(() => ({}));
-                throw new Error(errorData.error || "Error al programar el pedido");
+                throw new Error(errorData.error || "No se pudo conectar con el servidor de pedidos.");
             }
 
             if (paymentMethod === 'mercadopago') {
@@ -616,7 +659,7 @@ const CartDrawer: React.FC = () => {
                 });
                 
                 if (!response.ok) {
-                    throw new Error("Error conectando con MercadoPago");
+                    throw new Error("Error al conectar con MercadoPago. Verifique sus credenciales.");
                 }
 
                 const data = await response.json();
@@ -625,7 +668,7 @@ const CartDrawer: React.FC = () => {
                     clearCart();
                     window.location.href = data.init_point;
                 } else {
-                    throw new Error("No se pudo generar el link de pago");
+                    throw new Error("No se generó el link de pago correctamente.");
                 }
             } else {
                 const order: Order = { 
@@ -651,7 +694,8 @@ const CartDrawer: React.FC = () => {
             }
         } catch (error: any) { 
             console.error("Checkout Error:", error); 
-            showAlert("Error en el Pedido", error.message || "Hubo un problema al procesar el pedido. Intenta nuevamente.", "error"); 
+            const msg = error.message || "Hubo un problema desconocido.";
+            showAlert("Error en el Pedido", msg, "error"); 
         } finally { 
             setIsCheckingOut(false); 
         }
@@ -1513,15 +1557,17 @@ const Catalog: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <AppProvider>
-        <Routes>
-          <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/" element={<Catalog />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AppProvider>
+          <Routes>
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/" element={<Catalog />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </AppProvider>
+      </Router>
+    </ErrorBoundary>
   );
 };
 
