@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff, Store, CloudRain } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff, Store } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -492,8 +492,9 @@ const CartDrawer: React.FC = () => {
     if (!isCartOpen) return null;
 
     // --- CÁLCULO DE COSTOS ---
-    const cartTotal = cart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
-    const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+    const safeCart = cart || []; // Safety check
+    const cartTotal = safeCart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
+    const totalItems = safeCart.reduce((acc, item) => acc + item.quantity, 0);
     
     // Volumetría para Via Cargo (15x10x10 cm por item)
     // 1 bulto estándar de 15x10x10 = 1500 cm3
@@ -517,10 +518,10 @@ const CartDrawer: React.FC = () => {
             // OpenMeteo for Buenos Aires (Lat: -34.6037, Long: -58.3816)
             const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&current=weather_code&timezone=America%2FSao_Paulo');
             const data = await res.json();
-            const code = data.current.weather_code;
+            const code = data.current?.weather_code;
             const rainCodes = [51, 53, 55, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99];
             
-            if (rainCodes.includes(code)) {
+            if (code !== undefined && rainCodes.includes(code)) {
                 setIsRaining(true);
             } else {
                 setIsRaining(false);
@@ -562,7 +563,7 @@ const CartDrawer: React.FC = () => {
         
         setIsCheckingOut(true);
         const orderId = `ORD-${Date.now()}`;
-        const totalCost = cart.reduce((acc, item) => acc + (calculateProductCostARS(item) * item.quantity), 0);
+        const totalCost = safeCart.reduce((acc, item) => acc + (calculateProductCostARS(item) * item.quantity), 0);
         
         const fullOrderData = {
              orderId,
@@ -571,7 +572,7 @@ const CartDrawer: React.FC = () => {
              address: shippingMethod === 'pickup' ? 'Retiro en Belgrano' : customerInfo.address,
              city: shippingMethod === 'pickup' ? 'CABA' : customerInfo.city,
              deliveryDate: `${customerInfo.date} ${customerInfo.time}`,
-             items: cart,
+             items: safeCart,
              total: finalTotal,
              totalCost: totalCost,
              paymentMethod,
@@ -588,7 +589,7 @@ const CartDrawer: React.FC = () => {
             });
 
             if (paymentMethod === 'mercadopago') {
-                const items = cart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
+                const items = safeCart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
                 
                 if (payShippingNow && shippingCost > 0) {
                      items.push({ title: "Envío Moto CABA (c/Recargo Lluvia si aplica)", unit_price: shippingCost, quantity: 1 });
@@ -612,7 +613,7 @@ const CartDrawer: React.FC = () => {
             } else {
                 const order: Order = { 
                     id: orderId, 
-                    items: [...cart], 
+                    items: [...safeCart], 
                     total: finalTotal, 
                     cost: totalCost,
                     customerName: customerInfo.name, 
@@ -650,7 +651,7 @@ const CartDrawer: React.FC = () => {
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     <div className="space-y-3">
-                        {cart.length === 0 ? <p className="text-gray-500 text-center py-4">El carrito está vacío.</p> : cart.map(item => (
+                        {safeCart.length === 0 ? <p className="text-gray-500 text-center py-4">El carrito está vacío.</p> : safeCart.map(item => (
                             <div key={item.id} className="flex gap-3 items-center bg-black/40 p-3 rounded border border-neutral-800">
                                 <img src={item.image} className="w-12 h-12 rounded object-cover border border-neutral-700"/>
                                 <div className="flex-1 min-w-0">
@@ -662,7 +663,7 @@ const CartDrawer: React.FC = () => {
                         ))}
                     </div>
 
-                    {cart.length > 0 && (
+                    {safeCart.length > 0 && (
                         <>
                             <div className="border-t border-neutral-800 pt-4">
                                 <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-3">Datos de Envío</h3>
@@ -709,7 +710,7 @@ const CartDrawer: React.FC = () => {
                                                     </div>
                                                     <input type="checkbox" checked={isRaining} onChange={e => setIsRaining(e.target.checked)} className="hidden"/>
                                                     <span className={`text-sm ${isRaining ? 'text-blue-400 font-bold flex items-center gap-2' : 'text-gray-400 group-hover:text-white'}`}>
-                                                        {isRaining ? <><CloudRain size={14}/> Lluvia detectada (+50%)</> : 'Clima despejado (Sin recargo)'}
+                                                        {isRaining ? <>🌧️ Lluvia detectada (+50%)</> : '☀️ Clima despejado (Sin recargo)'}
                                                     </span>
                                                 </label>
                                             )}
@@ -783,7 +784,7 @@ const CartDrawer: React.FC = () => {
                     )}
                 </div>
 
-                {cart.length > 0 && (
+                {safeCart.length > 0 && (
                     <div className="p-6 bg-black border-t border-neutral-800">
                         <div className="flex flex-col gap-1 mb-4">
                             <div className="flex justify-between items-center text-sm text-gray-400">
@@ -811,6 +812,9 @@ const CartDrawer: React.FC = () => {
         </div>
     );
 };
+
+// ... AdminProductModal, AdminPanel, Catalog, App ...
+// (Returning full App content to avoid breaking the file structure provided by user)
 
 const AdminProductModal: React.FC<{ 
   product: Product | null, 
