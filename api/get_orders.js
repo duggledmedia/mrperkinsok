@@ -42,10 +42,12 @@ export default async function handler(req, res) {
     const orders = response.data.items.map(event => {
        const desc = event.description || '';
        
-       // Regex simple para extraer datos del formato estructurado en schedule_delivery.js
+       // Regex para extraer datos
        const idMatch = desc.match(/🆔 ID: (.*)/);
        const clientMatch = desc.match(/👤 Cliente: (.*)/);
+       const phoneMatch = desc.match(/📞 Teléfono: (.*)/);
        const totalMatch = desc.match(/💰 Total: \$(.*)/);
+       const costMatch = desc.match(/📉 Costo: \$(.*)/);
        const paymentMatch = desc.match(/💳 Pago: (.*)/);
        const addressMatch = desc.match(/📍 Dirección: (.*)/);
 
@@ -54,12 +56,15 @@ export default async function handler(req, res) {
        return {
          id: idMatch[1].trim(),
          customerName: clientMatch ? clientMatch[1].trim() : 'Desconocido',
+         phone: phoneMatch ? phoneMatch[1].trim() : '', // Fix phone parsing
          total: totalMatch ? Number(totalMatch[1].replace(/\./g,'').trim()) : 0,
-         status: 'pending', // Asumimos pending al recuperar
+         cost: costMatch ? Number(costMatch[1].replace(/\./g,'').trim()) : 0,
+         status: 'pending', // Por defecto pending al leer del calendario
          paymentMethod: paymentMatch && paymentMatch[1].includes('MercadoPago') ? 'mercadopago' : 'cash',
          address: addressMatch ? addressMatch[1].trim() : '',
+         city: '', // No siempre se parsea fácil de una sola linea, se asume en address
          deliveryDate: event.start.dateTime ? event.start.dateTime.split('T')[0] : '',
-         items: [], // No parseamos items en detalle para la lista rápida, pero podríamos
+         items: [], 
          type: 'retail',
          timestamp: new Date(event.created).getTime()
        };
