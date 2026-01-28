@@ -5,18 +5,13 @@ const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   if (!supabaseUrl || !supabaseKey) {
     return res.status(500).json({ error: "Database config missing" });
   }
 
   try {
-    // Fetch orders from Supabase (last 100)
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -25,7 +20,7 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // Map DB columns (snake_case) to Frontend Types (camelCase)
+    // Mapeo estricto SQL snake_case -> Frontend camelCase
     const orders = data.map(o => ({
       id: o.id,
       customerName: o.customer_name,
@@ -38,10 +33,10 @@ export default async function handler(req, res) {
       paymentMethod: o.payment_method,
       shippingMethod: o.shipping_method,
       deliveryDate: o.delivery_date,
-      items: o.items, // JSONB array
+      items: o.items, // jsonb sale como array/objeto JS
       googleEventId: o.google_event_id,
       timestamp: new Date(o.created_at).getTime(),
-      type: 'retail' // Default type
+      type: 'retail' 
     }));
 
     return res.status(200).json(orders);

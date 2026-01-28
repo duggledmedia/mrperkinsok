@@ -11,15 +11,17 @@ export default async function handler(req, res) {
   const { googleEventId, status } = req.body;
 
   try {
-    // 1. UPDATE SUPABASE
+    // 1. UPDATE SUPABASE (Usando google_event_id como clave si está disponible)
     if (googleEventId && supabaseUrl) {
-         await supabase
+         const { error } = await supabase
             .from('orders')
-            .update({ status: status })
+            .update({ status: status }) // Columna 'status' text
             .eq('google_event_id', googleEventId);
+         
+         if (error) throw error;
     }
 
-    // 2. UPDATE CALENDAR COLOR
+    // 2. UPDATE CALENDAR COLOR (Visual)
     const calendarId = process.env.GOOGLE_CALENDAR_ID;
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
     let privateKey = process.env.GOOGLE_PRIVATE_KEY;
