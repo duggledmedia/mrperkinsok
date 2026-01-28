@@ -1,86 +1,75 @@
 import { google } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 export default async function handler(req, res) {
-  // Solo permitir POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { orderId, customerName, phone, address, city, deliveryDate, items, total, totalCost, paymentMethod, shippingMethod } = req.body;
 
-  // 1. OBTENCIÓN DE CREDENCIALES
+  // --- 1. GOOGLE CALENDAR (VISUAL / AGENDA) ---
+  let googleEventId = null;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-  if (privateKey) {
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-      privateKey = privateKey.slice(1, -1);
+  if (clientEmail && privateKey && calendarId) {
+    try {
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) privateKey = privateKey.slice(1, -1);
+        privateKey = privateKey.replace(/\\n/g, '\n');
+
+        const jwtClient = new google.auth.JWT(clientEmail, null, privateKey, ['https://www.googleapis.com/auth/calendar']);
+        await jwtClient.authorize();
+        const calendar = google.calendar({ version: 'v3', auth: jwtClient });
+
+        const startDate = `${deliveryDate}T09:00:00-03:00`;
+        const endDate = `${deliveryDate}T18:00:00-03:00`;
+        const description = `🆔 ID: ${orderId}\n👤 Cliente: ${customerName}\n📞 Teléfono: ${phone || 'N/A'}\n📍 Dirección: ${address}, ${city || ''}\n🚚 Envío: ${shippingMethod}\n💳 Pago: ${paymentMethod}\n💰 Total: $${total}\n📦 Items:\n${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}`;
+
+        const event = {
+            summary: `🛍️ Pedido Mr. Perkins: ${customerName}`,
+            location: `${address}, ${city || ''}`,
+            description: description,
+            start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
+            end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
+            colorId: paymentMethod === 'mercadopago' ? '10' : '5',
+        };
+
+        const response = await calendar.events.insert({ calendarId, resource: event });
+        googleEventId = response.data.id;
+    } catch (e) {
+        console.error("Calendar sync failed (non-fatal):", e.message);
     }
-    privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  if (!clientEmail || !privateKey || !calendarId) {
-    console.error("❌ Faltan credenciales de Google Calendar");
-    return res.status(500).json({ error: "Configuración de calendario incompleta" });
-  }
+  // --- 2. SUPABASE (DATABASE SOURCE OF TRUTH) ---
+  if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: "DB Config missing" });
 
   try {
-    const jwtClient = new google.auth.JWT(
-      clientEmail,
-      null,
-      privateKey,
-      ['https://www.googleapis.com/auth/calendar']
-    );
+      const { error } = await supabase.from('orders').insert({
+          id: orderId,
+          customer_name: customerName,
+          phone,
+          address,
+          city,
+          total,
+          cost: totalCost,
+          status: 'pending',
+          payment_method: paymentMethod,
+          shipping_method: shippingMethod,
+          delivery_date: deliveryDate,
+          items: items,
+          google_event_id: googleEventId
+      });
 
-    await jwtClient.authorize();
-    const calendar = google.calendar({ version: 'v3', auth: jwtClient });
+      if (error) throw error;
 
-    // Configurar fechas (9 AM a 6 PM hora Argentina)
-    const startDate = `${deliveryDate}T09:00:00-03:00`;
-    const endDate = `${deliveryDate}T18:00:00-03:00`;
-
-    // FORMATO DE DESCRIPCIÓN ESTRUCTURADO PARA PODER LEERLO LUEGO
-    // Agregamos "Costo" y nos aseguramos que "Teléfono" esté presente
-    const description = `
-🆔 ID: ${orderId}
-👤 Cliente: ${customerName}
-📞 Teléfono: ${phone || 'N/A'}
-📍 Dirección: ${address}, ${city || ''}
-🚚 Envío: ${shippingMethod === 'caba' ? 'Moto CABA' : 'Envío al Interior'}
-💳 Pago: ${paymentMethod === 'mercadopago' ? 'MercadoPago' : 'Efectivo Contra Entrega'}
-💰 Total: $${total}
-📉 Costo: $${totalCost || 0}
-
-📦 Items:
-${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
-    `;
-
-    const event = {
-      summary: `🛍️ Pedido Mr. Perkins: ${customerName}`,
-      location: `${address}, ${city || ''}`,
-      description: description,
-      start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
-      end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
-      colorId: paymentMethod === 'mercadopago' ? '10' : '5', // Verde (10) si pagó, Amarillo (5) si es efectivo
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'popup', minutes: 0 },
-        ],
-      },
-    };
-
-    const response = await calendar.events.insert({
-      calendarId: calendarId,
-      resource: event,
-    });
-
-    console.log(`✅ Evento creado: ${response.data.htmlLink}`);
-    return res.status(200).json({ success: true, link: response.data.htmlLink });
-
+      return res.status(200).json({ success: true, googleEventId });
   } catch (error) {
-    console.error("❌ Error en Google Calendar API:", error.message);
-    return res.status(500).json({ error: "No se pudo agendar el envío." });
+      console.error("Supabase Insert Error:", error);
+      return res.status(500).json({ error: "Failed to save order to database" });
   }
 }
