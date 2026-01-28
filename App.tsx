@@ -102,31 +102,47 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL INICIO
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const lastUpdateRef = useRef<number>(0); // Timestamp de la última edición manual
 
   useEffect(() => {
     const fetchUpdates = async () => {
+      // SI HUBO UNA EDICIÓN MANUAL HACE MENOS DE 10 SEGUNDOS, PAUSAR LA SINCRONIZACIÓN
+      // Esto evita que el polling sobrescriba los cambios optimistas con datos viejos del servidor
+      if (Date.now() - lastUpdateRef.current < 10000) {
+          return; 
+      }
+
       try {
-        // AGREGADO timestamp para evitar cache del navegador
         const response = await fetch(`/api/products?t=${Date.now()}`);
         if (response.ok) {
           const overrides = await response.json();
           const productMap = new Map<string, Product>();
           
-          // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL ACTUALIZAR
+          // 1. Cargar Base Constante
           PRODUCTS.forEach(p => {
              productMap.set(p.id, { ...p }); 
           });
 
+          // 2. Aplicar Overrides del Backend
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
               if (data.deleted) {
                   productMap.delete(id);
               } else {
                   const existing = productMap.get(id);
                   if (existing) {
-                      productMap.set(id, { ...existing, ...data });
+                      // MERGE CON CUIDADO DE TIPOS
+                      productMap.set(id, { 
+                          ...existing, 
+                          ...data,
+                          // Asegurar que los valores numéricos sean números reales
+                          precio_usd: data.precio_usd !== undefined ? Number(data.precio_usd) : existing.precio_usd,
+                          stock: data.stock !== undefined ? Number(data.stock) : existing.stock,
+                          margin_retail: data.margin_retail !== undefined ? Number(data.margin_retail) : existing.margin_retail,
+                          margin_wholesale: data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : existing.margin_wholesale
+                      });
                   } else {
+                      // Nuevo producto creado en backend
                       productMap.set(id, { 
                           id, 
                           nombre: 'Nuevo Producto',
@@ -137,7 +153,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           presentacion_ml: 100,
                           genero: 'Unisex',
                           image: 'https://via.placeholder.com/150',
-                          // No forzamos margenes aqui tampoco
                           ...data 
                       });
                   }
@@ -210,6 +225,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
 
   const persistUpdate = async (id: string, updates: Partial<Product> | { deleted: boolean }) => {
+      // Marcar que hubo una actualización manual para pausar el polling
+      lastUpdateRef.current = Date.now();
+      
       try {
         await fetch('/api/products', {
           method: 'POST',
@@ -223,6 +241,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
+    // Optimistic update
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     persistUpdate(id, updates);
   };
@@ -239,6 +258,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const bulkUpdateMargins = async (type: 'retail' | 'wholesale', value: number) => {
+    lastUpdateRef.current = Date.now(); // Pausar polling
     const key = type === 'retail' ? 'margin_retail' : 'margin_wholesale';
     const newProducts = products.map(p => ({ ...p, [key]: value }));
     setProducts(newProducts);
