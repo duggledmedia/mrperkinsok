@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { orderId, customerName, phone, address, city, deliveryDate, items, total, paymentMethod, shippingMethod } = req.body;
+  const { orderId, customerName, phone, address, city, deliveryDate, items, total, totalCost, paymentMethod, shippingMethod } = req.body;
 
   // 1. OBTENCIÓN DE CREDENCIALES
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
@@ -41,6 +41,7 @@ export default async function handler(req, res) {
     const endDate = `${deliveryDate}T18:00:00-03:00`;
 
     // FORMATO DE DESCRIPCIÓN ESTRUCTURADO PARA PODER LEERLO LUEGO
+    // Agregamos "Costo" y nos aseguramos que "Teléfono" esté presente
     const description = `
 🆔 ID: ${orderId}
 👤 Cliente: ${customerName}
@@ -49,6 +50,7 @@ export default async function handler(req, res) {
 🚚 Envío: ${shippingMethod === 'caba' ? 'Moto CABA' : 'Envío al Interior'}
 💳 Pago: ${paymentMethod === 'mercadopago' ? 'MercadoPago' : 'Efectivo Contra Entrega'}
 💰 Total: $${total}
+📉 Costo: $${totalCost || 0}
 
 📦 Items:
 ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}

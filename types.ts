@@ -24,12 +24,13 @@ export interface Order {
   id: string;
   items: CartItem[];
   total: number;
+  cost?: number; // Costo total de la mercadería al momento de la compra
   customerName: string;
   phone?: string;
   address: string;
   city?: string; // Localidad
   deliveryDate: string;
-  status: 'pending' | 'shipped' | 'delivered';
+  status: 'pending' | 'shipped' | 'delivered' | 'cancelled';
   timestamp: number;
   type: 'retail' | 'wholesale'; // Tipo de orden
   paymentMethod: PaymentMethod;
