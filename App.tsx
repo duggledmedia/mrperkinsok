@@ -587,11 +587,16 @@ const CartDrawer: React.FC = () => {
         };
 
         try {
-            await fetch('/api/schedule_delivery', { 
+            const scheduleResponse = await fetch('/api/schedule_delivery', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify(fullOrderData) 
             });
+
+            if (!scheduleResponse.ok) {
+                const errorData = await scheduleResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || "Error al programar el pedido");
+            }
 
             if (paymentMethod === 'mercadopago') {
                 const items = safeCart.map(item => ({ title: item.nombre, unit_price: calculateFinalPriceARS(item), quantity: item.quantity }));
@@ -609,11 +614,18 @@ const CartDrawer: React.FC = () => {
                         external_reference: orderId 
                     }) 
                 });
+                
+                if (!response.ok) {
+                    throw new Error("Error conectando con MercadoPago");
+                }
+
                 const data = await response.json();
                 
                 if (data.init_point) {
                     clearCart();
                     window.location.href = data.init_point;
+                } else {
+                    throw new Error("No se pudo generar el link de pago");
                 }
             } else {
                 const order: Order = { 
@@ -637,9 +649,9 @@ const CartDrawer: React.FC = () => {
                 setIsCartOpen(false);
                 showAlert("¡Pedido Confirmado!", "Tu pedido ha sido registrado correctamente. Te contactaremos pronto.", "success");
             }
-        } catch (error) { 
-            console.error(error); 
-            showAlert("Error", "Hubo un problema al procesar el pedido. Intenta nuevamente.", "error"); 
+        } catch (error: any) { 
+            console.error("Checkout Error:", error); 
+            showAlert("Error en el Pedido", error.message || "Hubo un problema al procesar el pedido. Intenta nuevamente.", "error"); 
         } finally { 
             setIsCheckingOut(false); 
         }

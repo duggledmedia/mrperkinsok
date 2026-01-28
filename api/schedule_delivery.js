@@ -78,6 +78,7 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
         const response = await calendar.events.insert({ calendarId, resource: event });
         googleEventId = response.data.id;
     } catch (e) {
+        // Fallo no crítico, seguimos
         console.error("Calendar sync failed (non-fatal):", e.message);
     }
   }
@@ -107,6 +108,6 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
       return res.status(200).json({ success: true, googleEventId });
   } catch (error) {
       console.error("Supabase Insert Error:", error);
-      return res.status(500).json({ error: "Failed to save order to database" });
+      return res.status(500).json({ error: "Failed to save order to database", details: error.message });
   }
 }
