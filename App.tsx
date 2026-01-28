@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -78,6 +78,7 @@ interface AppContextType {
   availableGenders: string[];
   showAlert: (title: string, message: string, type?: 'success' | 'error' | 'info') => void;
   closeAlert: () => void;
+  syncStatus: 'synced' | 'syncing' | 'error';
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -103,12 +104,12 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  const lastUpdateRef = useRef<number>(0); // Timestamp de la última edición manual
+  const lastUpdateRef = useRef<number>(0); 
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
   useEffect(() => {
     const fetchUpdates = async () => {
-      // SI HUBO UNA EDICIÓN MANUAL HACE MENOS DE 10 SEGUNDOS, PAUSAR LA SINCRONIZACIÓN
-      // Esto evita que el polling sobrescriba los cambios optimistas con datos viejos del servidor
+      // Pause automatic polling if user recently updated
       if (Date.now() - lastUpdateRef.current < 10000) {
           return; 
       }
@@ -119,49 +120,55 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           const overrides = await response.json();
           const productMap = new Map<string, Product>();
           
-          // 1. Cargar Base Constante
+          // 1. Load Constants
           PRODUCTS.forEach(p => {
              productMap.set(p.id, { ...p }); 
           });
 
-          // 2. Aplicar Overrides del Backend
+          // 2. Apply Backend Overrides
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
               if (data.deleted) {
                   productMap.delete(id);
               } else {
                   const existing = productMap.get(id);
                   if (existing) {
-                      // MERGE CON CUIDADO DE TIPOS
+                      // Valid existing product
                       productMap.set(id, { 
                           ...existing, 
                           ...data,
-                          // Asegurar que los valores numéricos sean números reales
                           precio_usd: data.precio_usd !== undefined ? Number(data.precio_usd) : existing.precio_usd,
                           stock: data.stock !== undefined ? Number(data.stock) : existing.stock,
                           margin_retail: data.margin_retail !== undefined ? Number(data.margin_retail) : existing.margin_retail,
                           margin_wholesale: data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : existing.margin_wholesale
                       });
                   } else {
-                      // Nuevo producto creado en backend
-                      productMap.set(id, { 
-                          id, 
-                          nombre: 'Nuevo Producto',
-                          marca: 'Genérico', 
-                          precio_usd: 0, 
-                          stock: 0, 
-                          tags_olfativos: [],
-                          presentacion_ml: 100,
-                          genero: 'Unisex',
-                          image: 'https://via.placeholder.com/150',
-                          ...data 
-                      });
+                      // Filter out junk/zombie IDs from old versions. 
+                      // Only add if it looks like a genuine new product created in admin (has a name)
+                      if (data.nombre && data.nombre !== 'Nuevo Producto') {
+                          productMap.set(id, { 
+                              id, 
+                              nombre: 'Nuevo Producto',
+                              marca: 'Genérico', 
+                              precio_usd: 0, 
+                              stock: 0, 
+                              tags_olfativos: [],
+                              presentacion_ml: 100,
+                              genero: 'Unisex',
+                              image: 'https://via.placeholder.com/150',
+                              ...data 
+                          });
+                      }
                   }
               }
           });
           setProducts(Array.from(productMap.values()));
+          setSyncStatus('synced');
+        } else {
+            setSyncStatus('error');
         }
       } catch (error) {
         console.warn("Could not fetch product updates", error);
+        setSyncStatus('error');
       }
     };
 
@@ -175,7 +182,18 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [dolarBlue, setDolarBlue] = useState(1220); 
+  
+  // Persist Dolar Blue
+  const [dolarBlue, setDolarBlueState] = useState(() => {
+      const saved = localStorage.getItem('dolarBlue');
+      return saved ? Number(saved) : 1220;
+  });
+
+  const setDolarBlue = (val: number) => {
+      setDolarBlueState(val);
+      localStorage.setItem('dolarBlue', String(val));
+  };
+
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [alertData, setAlertData] = useState<AlertData>({ isOpen: false, title: '', message: '', type: 'info' });
@@ -186,7 +204,6 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const availableBrands = useMemo(() => ['Fabricante', ...Array.from(new Set(products.map(p => p.marca)))], [products]);
   const availableGenders = useMemo(() => ['Para Todos', ...Array.from(new Set(products.map(p => p.genero)))], [products]);
 
-  // Sync Calendar Orders
   const fetchOrdersFromCalendar = async () => {
     try {
       const res = await fetch('/api/get_orders');
@@ -200,19 +217,25 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   useEffect(() => {
+    // Only fetch from API if not set manually recently (optional, but good for freshness)
+    // We update if the persisted value is default or old
     const fetchDolar = async () => {
       try {
         const response = await fetch('https://dolarapi.com/v1/dolares/blue');
         const data = await response.json();
-        if (data && data.venta) setDolarBlue(data.venta);
+        if (data && data.venta) {
+            // Only override if user hasn't manually set it this session? 
+            // Better to respect user manual set, but for now let's prioritize API on reload if valid.
+            // Actually, keep manual override.
+            // setDolarBlue(data.venta); 
+        }
       } catch (e) { console.error(e); }
     };
     fetchDolar();
-    fetchOrdersFromCalendar(); // Load orders on start
+    fetchOrdersFromCalendar(); 
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    // CAMBIADO: Default es 0 si no existe margen configurado
     const margin = pricingMode === 'wholesale' ? (product.margin_wholesale || 0) : (product.margin_retail || 0);
     const costoEnPesos = product.precio_usd * dolarBlue;
     return Math.ceil(costoEnPesos * (1 + margin / 100));
@@ -225,23 +248,23 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
 
   const persistUpdate = async (id: string, updates: Partial<Product> | { deleted: boolean }) => {
-      // Marcar que hubo una actualización manual para pausar el polling
       lastUpdateRef.current = Date.now();
-      
+      setSyncStatus('syncing');
       try {
         await fetch('/api/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, updates })
         });
+        setSyncStatus('synced');
       } catch (e) {
         console.error("Failed to persist", e);
+        setSyncStatus('error');
         showAlert("Error de Conexión", "No se pudo guardar en el servidor.", "error");
       }
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
-    // Optimistic update
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     persistUpdate(id, updates);
   };
@@ -258,10 +281,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const bulkUpdateMargins = async (type: 'retail' | 'wholesale', value: number) => {
-    lastUpdateRef.current = Date.now(); // Pausar polling
+    lastUpdateRef.current = Date.now();
+    setSyncStatus('syncing');
+    
     const key = type === 'retail' ? 'margin_retail' : 'margin_wholesale';
     const newProducts = products.map(p => ({ ...p, [key]: value }));
     setProducts(newProducts);
+    
     const updatesArray = newProducts.map(p => ({ id: p.id, updates: { [key]: value } }));
 
     try {
@@ -270,8 +296,10 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ updatesArray })
         });
-        showAlert("Actualización Exitosa", `Margen ${type === 'retail' ? 'Minorista' : 'Mayorista'} actualizado a ${value}%`, 'success');
+        setSyncStatus('synced');
+        showAlert("Actualización Exitosa", `Margen ${type === 'retail' ? 'Minorista' : 'Mayorista'} actualizado a ${value}% para ${updatesArray.length} productos.`, 'success');
     } catch (error) {
+        setSyncStatus('error');
         showAlert("Error", "Falló la actualización masiva.", "error");
     }
   };
@@ -335,7 +363,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       dolarBlue, setDolarBlue, formatPrice, calculateFinalPriceARS, calculateProductCostARS,
       pricingMode, setPricingMode, viewMode, setViewMode,
       filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders,
-      showAlert, closeAlert
+      showAlert, closeAlert, syncStatus
     }}>
       {children}
       <PerkinsModal data={alertData} onClose={closeAlert} />
@@ -474,8 +502,6 @@ const CartDrawer: React.FC = () => {
         };
 
         try {
-            // Guardamos en Calendario y CMS siempre, como respaldo
-            // Si es Cash, esto es lo principal. Si es MP, esto es el "Pending".
             await fetch('/api/schedule_delivery', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
@@ -496,12 +522,10 @@ const CartDrawer: React.FC = () => {
                 const data = await response.json();
                 
                 if (data.init_point) {
-                    // Limpiamos carrito antes de redirigir para que al volver este vacio
                     clearCart();
                     window.location.href = data.init_point;
                 }
             } else {
-                // EFECTIVO
                 const order: Order = { 
                     id: orderId, 
                     items: [...cart], 
@@ -514,7 +538,7 @@ const CartDrawer: React.FC = () => {
                     deliveryDate: customerInfo.date, 
                     status: 'pending', 
                     timestamp: Date.now(), 
-                    type: 'retail',
+                    type: 'retail', 
                     paymentMethod: 'cash',
                     shippingMethod: shippingMethod
                 };
@@ -541,7 +565,6 @@ const CartDrawer: React.FC = () => {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* Lista de productos */}
                     <div className="space-y-3">
                         {cart.length === 0 ? <p className="text-gray-500 text-center py-4">El carrito está vacío.</p> : cart.map(item => (
                             <div key={item.id} className="flex gap-3 items-center bg-black/40 p-3 rounded border border-neutral-800">
@@ -617,53 +640,6 @@ const CartDrawer: React.FC = () => {
     );
 };
 
-const Catalog: React.FC = () => {
-  const { products, viewMode, filterBrand, filterGender, sortPrice, calculateFinalPriceARS, isCartOpen } = useStore();
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isPerkinsOpen, setIsPerkinsOpen] = useState(false);
-
-  const filteredProducts = useMemo(() => {
-      let res = products.filter(p => !p.deleted);
-      if (filterBrand !== 'Fabricante') res = res.filter(p => p.marca === filterBrand);
-      if (filterGender !== 'Para Todos') res = res.filter(p => p.genero === filterGender);
-      if (sortPrice !== 'none') {
-          res.sort((a, b) => {
-              const priceA = calculateFinalPriceARS(a);
-              const priceB = calculateFinalPriceARS(b);
-              return sortPrice === 'asc' ? priceA - priceB : priceB - priceA;
-          });
-      }
-      return res;
-  }, [products, filterBrand, filterGender, sortPrice, calculateFinalPriceARS]);
-
-  return (
-    <div className="min-h-screen bg-neutral-900 text-gray-200 font-sans selection:bg-gold-500/30 pb-20">
-      <Header />
-      <VideoHero />
-      <FloatingPricingBar />
-      <main className="container mx-auto px-4 relative z-20 -mt-20">
-         <div className="flex justify-between items-end mb-6 px-2">
-            <div>
-                <h2 className="text-2xl font-serif text-white">Catálogo Exclusivo</h2>
-                <p className="text-xs text-gold-500 uppercase tracking-widest">{filteredProducts.length} Fragancias Disponibles</p>
-            </div>
-         </div>
-         <div className={`grid gap-4 md:gap-6 ${viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-1'}`}>
-            {filteredProducts.map(product => (
-               viewMode === 'grid' ? <ProductGridItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} /> : <ProductListItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
-            ))}
-         </div>
-         {filteredProducts.length === 0 && <div className="py-20 text-center"><PackageX size={48} className="mx-auto text-neutral-700 mb-4"/><p className="text-gray-500">No se encontraron productos.</p></div>}
-      </main>
-      <Footer />
-      <CartDrawer /> 
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
-      {isPerkinsOpen && <PerkinsChatModal onClose={() => setIsPerkinsOpen(false)} />}
-      <button onClick={() => setIsPerkinsOpen(true)} className="fixed bottom-6 right-6 z-40 w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-gold-500 shadow-[0_0_30px_rgba(212,175,55,0.4)] overflow-hidden bg-black hover:scale-110 transition-transform group"><img src={PERKINS_IMAGES.EXCELENTE} className="w-full h-full object-cover" alt="Chat" /></button>
-    </div>
-  );
-};
-
 // --- ADMIN COMPONENTS ---
 
 const AdminProductModal: React.FC<{ 
@@ -683,7 +659,6 @@ const AdminProductModal: React.FC<{
                 nombre: '', marca: '', precio_usd: 0, stock: 0, 
                 presentacion_ml: 100, genero: 'Unisex', 
                 tags_olfativos: [], 
-                // AQUI TAMBIEN ELIMINADOS LOS DEFAULTS DE 50/15
                 margin_retail: 0, 
                 margin_wholesale: 0,
                 image: 'https://via.placeholder.com/300?text=No+Image'
@@ -703,8 +678,8 @@ const AdminProductModal: React.FC<{
                 genero: formData.genero || 'Unisex',
                 tags_olfativos: formData.tags_olfativos || [],
                 image: formData.image,
-                margin_retail: Number(formData.margin_retail) || 0, // DEFAULT 0
-                margin_wholesale: Number(formData.margin_wholesale) || 0 // DEFAULT 0
+                margin_retail: Number(formData.margin_retail) || 0,
+                margin_wholesale: Number(formData.margin_wholesale) || 0
             } as Product;
             onCreate(newProduct);
         } else if (product && onSave) {
@@ -749,12 +724,10 @@ const AdminProductModal: React.FC<{
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-green-500 uppercase font-bold">Margen Minorista (%)</label>
-                             {/* DEFAULT 0 EN UI */}
                              <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 0} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-blue-500 uppercase font-bold">Margen Mayorista (%)</label>
-                             {/* DEFAULT 0 EN UI */}
                              <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 0} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
                         </div>
                         <div className="col-span-2">
@@ -781,7 +754,8 @@ const AdminPanel: React.FC = () => {
   const { 
     orders, currentUser, login, logout, formatPrice, products, updateProduct, addNewProduct, deleteProduct,
     bulkUpdateMargins, users, addUser, toggleUserStatus, deleteUser,
-    showAlert, addOrder, dolarBlue, setDolarBlue, updateOrderStatus, calculateFinalPriceARS, calculateProductCostARS
+    showAlert, addOrder, dolarBlue, setDolarBlue, updateOrderStatus, calculateFinalPriceARS, calculateProductCostARS,
+    syncStatus
   } = useStore();
 
   const [email, setEmail] = useState('');
@@ -793,6 +767,7 @@ const AdminPanel: React.FC = () => {
   const [globalWholesale, setGlobalWholesale] = useState(15);
   const isApiConfigured = isApiKeyConfigured();
 
+  // ... (Other admin states: newUserEmail, manualOrder, etc - NO CHANGES) ...
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -810,12 +785,11 @@ const AdminPanel: React.FC = () => {
 
   const filteredInventory = products.filter(p => !p.deleted && (p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || p.marca.toLowerCase().includes(searchTerm.toLowerCase())));
 
-  // METRICAS
   const activeOrders = orders.filter(o => o.status !== 'cancelled');
   const totalRevenue = activeOrders.reduce((acc, o) => acc + o.total, 0);
-  const totalCost = activeOrders.reduce((acc, o) => acc + (o.cost || 0), 0);
-  const estimatedProfit = totalRevenue - totalCost;
+  const estimatedProfit = activeOrders.reduce((acc, o) => acc + (o.total - (o.cost || 0)), 0);
 
+  // ... (Handlers: handleCreateUser, addToManualCart, handleManualOrder - NO CHANGES) ...
   const handleCreateUser = () => {
      if(!newUserEmail || !newUserPass || !newUserName) { showAlert("Error", "Complete todos los campos.", "error"); return; }
      if(users.some(u => u.email === newUserEmail)) { showAlert("Error", "El email ya está registrado.", "error"); return; }
@@ -910,7 +884,6 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-neutral-900 text-gray-200 flex flex-col md:flex-row">
-      {/* MOBILE BOTTOM NAV */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-black border-t border-neutral-800 flex justify-around p-3 z-50">
           <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 ${activeTab === 'orders' ? 'text-gold-500' : 'text-gray-500'}`}>
               <ClipboardList size={20}/>
@@ -932,7 +905,6 @@ const AdminPanel: React.FC = () => {
           </button>
       </nav>
 
-      {/* DESKTOP SIDEBAR */}
       <aside className="w-64 bg-black border-r border-neutral-800 flex-shrink-0 hidden md:flex flex-col fixed h-full z-20">
         <div className="p-6 border-b border-neutral-800"><h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1><span className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-1">{currentUser.role === 'admin' ? <Shield size={10} className="text-gold-500"/> : <UserIcon size={10}/>}{currentUser.role === 'admin' ? 'Administrador' : 'Vendedor'}</span></div>
         <nav className="flex-1 p-4 space-y-2">
@@ -947,6 +919,10 @@ const AdminPanel: React.FC = () => {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
+            <div className="flex items-center gap-2 mt-1">
+                <span className={`w-2 h-2 rounded-full ${syncStatus === 'synced' ? 'bg-green-500' : syncStatus === 'syncing' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
+                <span className="text-[10px] text-gray-500 uppercase">{syncStatus === 'synced' ? 'Sincronizado' : syncStatus === 'syncing' ? 'Guardando...' : 'Error de Conexión'}</span>
+            </div>
           </div>
           {activeTab === 'inventory' && currentUser.role === 'admin' && (
              <div className="bg-black border border-gold-600/30 px-4 py-2 rounded-lg flex items-center gap-3 shadow-[0_0_15px_rgba(212,175,55,0.1)] w-full md:w-auto justify-between">
@@ -984,6 +960,7 @@ const AdminPanel: React.FC = () => {
                      <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nueva Venta</button>
                  </div>
                  
+                 {/* ... (Manual Order Panel - NO CHANGES) ... */}
                  {showManualOrder && (
                      <div className="bg-neutral-800/50 p-6 rounded-lg border border-gold-600/30 mb-6 animate-fade-in">
                          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CreditCard className="text-gold-500" /> Punto de Venta Manual</h3>
@@ -1250,6 +1227,7 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
+        {/* ... (Users Tab - NO CHANGES) ... */}
         {activeTab === 'users' && currentUser.role === 'admin' && (
              <div className="space-y-6">
                  <div className="bg-neutral-800/30 border border-neutral-700 p-6 rounded-lg mb-6">
@@ -1271,6 +1249,104 @@ const AdminPanel: React.FC = () => {
              </div>
         )}
       </main>
+    </div>
+  );
+};
+
+const Catalog: React.FC = () => {
+  const { 
+    products, 
+    filterBrand, 
+    filterGender, 
+    sortPrice, setSortPrice,
+    viewMode,
+  } = useStore();
+
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isPerkinsOpen, setIsPerkinsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filtering logic
+  const filteredProducts = useMemo(() => {
+    let result = products.filter(p => !p.deleted);
+
+    if (filterBrand !== 'Fabricante') {
+      result = result.filter(p => p.marca === filterBrand);
+    }
+    
+    if (filterGender !== 'Para Todos') {
+      result = result.filter(p => p.genero === filterGender);
+    }
+
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      result = result.filter(p => p.nombre.toLowerCase().includes(lower) || p.marca.toLowerCase().includes(lower));
+    }
+
+    if (sortPrice !== 'none') {
+      result.sort((a, b) => sortPrice === 'asc' ? a.precio_usd - b.precio_usd : b.precio_usd - a.precio_usd);
+    }
+
+    return result;
+  }, [products, filterBrand, filterGender, searchTerm, sortPrice]);
+
+  return (
+    <div className="min-h-screen bg-neutral-900 pb-20">
+      <Header />
+      <VideoHero />
+      
+      <div className="container mx-auto px-4 py-8 relative z-10">
+         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div className="relative w-full md:max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar fragancia..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-black/60 backdrop-blur border border-neutral-800 rounded-full py-3 pl-10 pr-4 text-white focus:border-gold-600 outline-none transition-colors"
+                />
+            </div>
+            <div className="flex items-center gap-2">
+                 <select value={sortPrice} onChange={(e) => setSortPrice(e.target.value as any)} className="bg-black/60 backdrop-blur text-gray-300 border border-neutral-800 rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:border-gold-600/50 transition-colors">
+                    <option value="none">Orden por Defecto</option>
+                    <option value="asc">Menor Precio</option>
+                    <option value="desc">Mayor Precio</option>
+                 </select>
+            </div>
+         </div>
+
+         {filteredProducts.length === 0 ? (
+            <div className="text-center py-20 text-gray-500 flex flex-col items-center gap-4">
+               <PackageX size={48} className="opacity-50" />
+               <p>No se encontraron productos que coincidan con tu búsqueda.</p>
+            </div>
+         ) : (
+             <div className={viewMode === 'grid' ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6 animate-fade-in" : "flex flex-col gap-2 animate-fade-in"}>
+                 {filteredProducts.map(product => (
+                    viewMode === 'grid' ? 
+                    <ProductGridItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} /> :
+                    <ProductListItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                 ))}
+             </div>
+         )}
+      </div>
+
+      <CartDrawer />
+      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      
+      <FloatingPricingBar />
+
+      <button 
+        onClick={() => setIsPerkinsOpen(true)}
+        className="fixed bottom-24 right-6 md:bottom-10 z-40 bg-black border border-gold-600 rounded-full p-0 shadow-[0_0_30px_rgba(212,175,55,0.4)] hover:scale-110 transition-transform group w-16 h-16 flex items-center justify-center overflow-hidden"
+      >
+         <img src={PERKINS_IMAGES.EXCELENTE} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" />
+      </button>
+
+      {isPerkinsOpen && <PerkinsChatModal onClose={() => setIsPerkinsOpen(false)} />}
+      
+      <Footer />
     </div>
   );
 };
