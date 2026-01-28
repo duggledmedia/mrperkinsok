@@ -3,16 +3,15 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
+  // Cargar variables de entorno (incluyendo .env)
+  // Casting process as any to avoid type check error if @types/node is missing
   const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env to prevent "process is not defined" errors in browser
-      'process.env': {}, 
-      // Expose specific env vars safely
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Polyfill simple para evitar "process is not defined"
+      'process.env': JSON.stringify(env),
     },
     server: {
       proxy: {
