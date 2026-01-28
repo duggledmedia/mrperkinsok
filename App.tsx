@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Banknote, Phone, Clock, TrendingUp, Store } from 'lucide-react';
+import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, ClipboardList, LogOut, Lock, Search, Edit3, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Banknote, Phone, Clock, TrendingUp, Box, Plus } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -413,7 +413,7 @@ const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAd
   const isOutOfStock = product.stock <= 0;
   if (isOutOfStock) return null;
   if (quantityInCart === 0) return <button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`bg-neutral-800 hover:bg-gold-600 hover:text-black text-gold-500 border border-gold-600/50 rounded flex items-center justify-center transition-colors uppercase tracking-widest ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-3 py-1.5'}`}>Agregar</button>;
-  return <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-5' : 'h-8'}`}><button onClick={(e) => { e.stopPropagation(); onRemove(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><Minus size={compact ? 10 : 14} /></button><span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-5 text-[9px]' : 'w-8 text-sm'}`}>{quantityInCart}</span><button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><Plus size={compact ? 10 : 14} /></button></div>;
+  return <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-5' : 'h-8'}`}><button onClick={(e) => { e.stopPropagation(); onRemove(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold">-</span></button><span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-5 text-[9px]' : 'w-8 text-sm'}`}>{quantityInCart}</span><button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold">+</span></button></div>;
 };
 
 const Header: React.FC = () => {
@@ -684,10 +684,10 @@ const CartDrawer: React.FC = () => {
                                             <Truck size={14}/> Moto CABA
                                         </button>
                                         <button onClick={() => setShippingMethod('interior')} className={`p-2 rounded border text-[10px] md:text-xs font-bold uppercase flex flex-col items-center justify-center gap-1 ${shippingMethod === 'interior' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>
-                                            <Box size={14}/> Interior
+                                            <div className="font-bold text-lg">📦</div> Interior
                                         </button>
                                         <button onClick={() => setShippingMethod('pickup')} className={`p-2 rounded border text-[10px] md:text-xs font-bold uppercase flex flex-col items-center justify-center gap-1 ${shippingMethod === 'pickup' ? 'bg-gold-600 text-black border-gold-600' : 'bg-transparent text-gray-400 border-neutral-700'}`}>
-                                            <Store size={14}/> Retiro
+                                            <MapPin size={14}/> Retiro
                                         </button>
                                     </div>
 
@@ -812,6 +812,9 @@ const CartDrawer: React.FC = () => {
         </div>
     );
 };
+
+// ... AdminProductModal, AdminPanel, Catalog, App ...
+// (Returning full App content to avoid breaking the file structure provided by user)
 
 const AdminProductModal: React.FC<{ 
   product: Product | null, 
@@ -1271,8 +1274,8 @@ const AdminPanel: React.FC = () => {
                                                 {order.shippingMethod === 'caba' ? 
                                                     <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={10}/> Moto</span> : 
                                                 order.shippingMethod === 'pickup' ?
-                                                    <span className="text-[10px] flex items-center gap-1 text-emerald-400 border border-emerald-900 px-1 rounded bg-emerald-900/20"><Store size={10}/> Retiro</span> :
-                                                    <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><Box size={10}/> Interior</span>
+                                                    <span className="text-[10px] flex items-center gap-1 text-emerald-400 border border-emerald-900 px-1 rounded bg-emerald-900/20"><MapPin size={10}/> Retiro</span> :
+                                                    <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><div className="w-2.5 h-2.5 flex items-center justify-center font-bold text-[8px]">📦</div> Interior</span>
                                                 }
                                             </div>
                                             <p className="flex items-center gap-2"><Clock size={12}/> Entrega: {order.deliveryDate}</p>
