@@ -53,13 +53,24 @@ export default async function handler(req, res) {
 
        if (!idMatch) return null; // No es un pedido nuestro
 
+       // Map Calendar Color ID to Status
+       // 5 (Amarillo) -> Pending
+       // 9 (Azul) -> Shipped
+       // 10 (Verde) -> Delivered
+       // 11 (Rojo) -> Cancelled
+       let status = 'pending';
+       if (event.colorId === '9') status = 'shipped';
+       if (event.colorId === '10') status = 'delivered';
+       if (event.colorId === '11') status = 'cancelled';
+
        return {
          id: idMatch[1].trim(),
+         googleEventId: event.id, // SAVE GOOGLE EVENT ID
          customerName: clientMatch ? clientMatch[1].trim() : 'Desconocido',
          phone: phoneMatch ? phoneMatch[1].trim() : '', 
          total: totalMatch ? Number(totalMatch[1].replace(/\./g,'').trim()) : 0,
          cost: costMatch ? Number(costMatch[1].replace(/\./g,'').trim()) : 0,
-         status: 'pending', // Por defecto pending al leer del calendario
+         status: status, 
          paymentMethod: paymentMatch && paymentMatch[1].includes('MercadoPago') ? 'mercadopago' : 'cash',
          address: addressMatch ? addressMatch[1].trim() : '',
          city: '', // No siempre se parsea fácil de una sola linea, se asume en address

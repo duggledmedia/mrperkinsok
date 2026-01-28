@@ -106,9 +106,9 @@ app.post('/api/products', (req, res) => {
   res.json({ success: true, overrides: productOverrides });
 });
 
-// Bulk Product Update (Renamed to prevent routing conflicts)
+// Bulk Product Update
 app.post('/api/bulk-update', (req, res) => {
-  const { updatesArray } = req.body; // Expects [{ id: '...', updates: {...} }, ...]
+  const { updatesArray } = req.body; 
   
   if (!Array.isArray(updatesArray)) {
     return res.status(400).json({ error: 'updatesArray must be an array' });
@@ -177,7 +177,7 @@ app.post('/api/create_preference', async (req, res) => {
 
 // 2. Agendar Entrega (Google Calendar)
 app.post('/api/schedule_delivery', async (req, res) => {
-  const { orderId, customerName, address, deliveryDate, items, total } = req.body;
+  const { orderId, customerName, address, deliveryDate, items, total, totalCost, phone, paymentMethod, shippingMethod } = req.body;
 
   if (!calendarClient) {
     console.error("Intento de agendar sin configuración de calendario.");
@@ -191,10 +191,14 @@ app.post('/api/schedule_delivery', async (req, res) => {
     const endDate = `${deliveryDate}T18:00:00-03:00`;
 
     const description = `
-🆔 Pedido: ${orderId}
+🆔 ID: ${orderId}
 👤 Cliente: ${customerName}
+📞 Teléfono: ${phone || 'N/A'}
 📍 Dirección: ${address}
-💰 Total: ${total}
+🚚 Envío: ${shippingMethod === 'caba' ? 'Moto CABA' : 'Envío al Interior'}
+💳 Pago: ${paymentMethod === 'mercadopago' ? 'MercadoPago' : 'Efectivo Contra Entrega'}
+💰 Total: $${total}
+📉 Costo: $${totalCost || 0}
 
 📦 Productos:
 ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
@@ -206,7 +210,7 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
       description: description,
       start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
       end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
-      colorId: '5',
+      colorId: '5', // 5 = Yellow (Pending default)
     };
 
     const response = await calendarClient.events.insert({
@@ -223,6 +227,39 @@ ${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
   }
 });
 
+// 3. Update Order Status (Sync Color in Calendar)
+app.post('/api/update_order_status', async (req, res) => {
+    const { googleEventId, status } = req.body;
+
+    if (!calendarClient) return res.status(503).json({ error: "Calendar not configured" });
+    if (!googleEventId) return res.status(400).json({ error: "Missing Event ID" });
+
+    // Map status to Google Calendar Colors
+    const colorMap = {
+        'pending': '5',   // Banana (Yellow)
+        'shipped': '9',   // Blueberry (Blue)
+        'delivered': '10',// Basil (Green)
+        'cancelled': '11' // Tomato (Red)
+    };
+
+    const colorId = colorMap[status] || '8'; // Default Graphite
+
+    try {
+        await calendarClient.events.patch({
+            calendarId: calendarId,
+            eventId: googleEventId,
+            resource: {
+                colorId: colorId
+            }
+        });
+        console.log(`🔄 Estado actualizado [${status}] para evento ${googleEventId}`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error("❌ Error updating calendar status:", error);
+        res.status(500).json({ error: "Failed to update calendar event" });
+    }
+});
+
 app.listen(port, () => {
   console.log(`\n🚀 Backend Mr. Perkins corriendo en: http://localhost:${port}`);
   console.log(`   Base de datos: ${DB_PATH}`);
@@ -230,5 +267,6 @@ app.listen(port, () => {
   console.log(`   - GET/POST /api/products`);
   console.log(`   - POST /api/bulk-update`);
   console.log(`   - POST /api/create_preference`);
-  console.log(`   - POST /api/schedule_delivery\n`);
+  console.log(`   - POST /api/schedule_delivery`);
+  console.log(`   - POST /api/update_order_status\n`);
 });

@@ -1,3 +1,4 @@
+
 export interface Product {
   id: string;
   marca: string;
@@ -22,6 +23,7 @@ export type ShippingMethod = 'caba' | 'interior';
 
 export interface Order {
   id: string;
+  googleEventId?: string; // ID del evento en Google Calendar para actualizaciones
   items: CartItem[];
   total: number;
   cost?: number; // Costo total de la mercadería al momento de la compra

@@ -138,11 +138,11 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           ...data,
                           precio_usd: data.precio_usd !== undefined ? Number(data.precio_usd) : existing.precio_usd,
                           stock: data.stock !== undefined ? Number(data.stock) : existing.stock,
-                          margin_retail: data.margin_retail !== undefined ? Number(data.margin_retail) : existing.margin_retail,
-                          margin_wholesale: data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : existing.margin_wholesale
+                          // Use overrides, if not found use existing, if not found use defaults (50/15)
+                          margin_retail: data.margin_retail !== undefined ? Number(data.margin_retail) : (existing.margin_retail ?? 50),
+                          margin_wholesale: data.margin_wholesale !== undefined ? Number(data.margin_wholesale) : (existing.margin_wholesale ?? 15)
                       });
                   } else {
-                      // Filter out junk/zombie IDs from old versions. 
                       // Only add if it looks like a genuine new product created in admin (has a name)
                       if (data.nombre && data.nombre !== 'Nuevo Producto') {
                           productMap.set(id, { 
@@ -155,7 +155,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                               presentacion_ml: 100,
                               genero: 'Unisex',
                               image: 'https://via.placeholder.com/150',
-                              ...data 
+                              ...data,
+                              margin_retail: data.margin_retail ?? 50,
+                              margin_wholesale: data.margin_wholesale ?? 15
                           });
                       }
                   }
@@ -186,7 +188,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Persist Dolar Blue
   const [dolarBlue, setDolarBlueState] = useState(() => {
       const saved = localStorage.getItem('dolarBlue');
-      return saved ? Number(saved) : 1220;
+      return saved ? Number(saved) : 1230; // Backup default
   });
 
   const setDolarBlue = (val: number) => {
@@ -217,26 +219,28 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Only fetch from API if not set manually recently (optional, but good for freshness)
-    // We update if the persisted value is default or old
     const fetchDolar = async () => {
       try {
         const response = await fetch('https://dolarapi.com/v1/dolares/blue');
         const data = await response.json();
         if (data && data.venta) {
-            // Only override if user hasn't manually set it this session? 
-            // Better to respect user manual set, but for now let's prioritize API on reload if valid.
-            // Actually, keep manual override.
-            // setDolarBlue(data.venta); 
+            // If the API value is valid, we can choose to update it or respect user override.
+            // Let's only update if the stored value is very old or significantly different?
+            // For simplicity, let's update it on load to keep it fresh from the API.
+            setDolarBlue(data.venta); 
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("Error fetching Dolar:", e); }
     };
     fetchDolar();
     fetchOrdersFromCalendar(); 
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale || 0) : (product.margin_retail || 0);
+    // If margin is undefined, fall back to 50/15 defaults
+    const margin = pricingMode === 'wholesale' 
+        ? (product.margin_wholesale !== undefined ? product.margin_wholesale : 15) 
+        : (product.margin_retail !== undefined ? product.margin_retail : 50);
+        
     const costoEnPesos = product.precio_usd * dolarBlue;
     return Math.ceil(costoEnPesos * (1 + margin / 100));
   };
@@ -335,8 +339,25 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const clearCart = () => setCart([]);
   const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
   
-  const updateOrderStatus = (orderId: string, status: 'pending' | 'shipped' | 'delivered' | 'cancelled') => {
+  const updateOrderStatus = async (orderId: string, status: 'pending' | 'shipped' | 'delivered' | 'cancelled') => {
+      // Optimistic update
+      const targetOrder = orders.find(o => o.id === orderId);
+      if (!targetOrder) return;
+
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+
+      if (targetOrder.googleEventId) {
+          try {
+              await fetch('/api/update_order_status', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ googleEventId: targetOrder.googleEventId, status })
+              });
+          } catch (e) {
+              console.error("Failed to update status in backend", e);
+              showAlert("Error Sincronización", "No se pudo actualizar el estado en el calendario.", "error");
+          }
+      }
   };
 
   const login = (email: string, pass: string): boolean => {
@@ -787,6 +808,7 @@ const AdminPanel: React.FC = () => {
 
   const activeOrders = orders.filter(o => o.status !== 'cancelled');
   const totalRevenue = activeOrders.reduce((acc, o) => acc + o.total, 0);
+  // GANANCIA REAL: Total Facturado - Costo Mercadería (al momento de la venta)
   const estimatedProfit = activeOrders.reduce((acc, o) => acc + (o.total - (o.cost || 0)), 0);
 
   // ... (Handlers: handleCreateUser, addToManualCart, handleManualOrder - NO CHANGES) ...
@@ -1072,7 +1094,10 @@ const AdminPanel: React.FC = () => {
                                <div className="flex flex-col justify-between items-end min-w-[120px]">
                                    <div className={`font-bold text-2xl ${order.status === 'cancelled' ? 'text-gray-600 line-through' : 'text-gold-500'}`}>{formatPrice(order.total)}</div>
                                    {currentUser.role === 'admin' && order.status !== 'cancelled' && (
-                                       <span className="text-[10px] text-gray-600" title="Costo Mercadería">Costo: {formatPrice(order.cost || 0)}</span>
+                                       <div className="text-right">
+                                            <div className="text-[10px] text-gray-600">Costo: {formatPrice(order.cost || 0)}</div>
+                                            <div className="text-[10px] text-green-600 font-bold">Ganancia: {formatPrice(order.total - (order.cost || 0))}</div>
+                                       </div>
                                    )}
                                </div>
                             </div>
@@ -1254,101 +1279,89 @@ const AdminPanel: React.FC = () => {
 };
 
 const Catalog: React.FC = () => {
-  const { 
-    products, 
-    filterBrand, 
-    filterGender, 
-    sortPrice, setSortPrice,
-    viewMode,
-  } = useStore();
+    const { products, viewMode, filterBrand, filterGender, sortPrice, setSortPrice, dolarBlue } = useStore();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isPerkinsOpen, setIsPerkinsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+    const filteredProducts = useMemo(() => {
+        let res = [...products].filter(p => !p.deleted);
+        if (filterBrand !== 'Fabricante') res = res.filter(p => p.marca === filterBrand);
+        if (filterGender !== 'Para Todos') res = res.filter(p => p.genero === filterGender);
+        
+        if (sortPrice === 'asc') {
+             res.sort((a,b) => (a.precio_usd * dolarBlue) - (b.precio_usd * dolarBlue));
+        } else if (sortPrice === 'desc') {
+             res.sort((a,b) => (b.precio_usd * dolarBlue) - (a.precio_usd * dolarBlue));
+        }
+        return res;
+    }, [products, filterBrand, filterGender, sortPrice, dolarBlue]);
 
-  // Filtering logic
-  const filteredProducts = useMemo(() => {
-    let result = products.filter(p => !p.deleted);
+    return (
+        <div className="bg-neutral-900 min-h-screen font-sans text-gray-200 selection:bg-gold-500 selection:text-black pb-20">
+            <Header />
+            <CartDrawer />
+            
+            <main>
+                <VideoHero />
+                
+                <div className="container mx-auto px-4 py-8 relative z-10 -mt-20">
+                    <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-6 gap-4">
+                        <div>
+                            <h2 className="text-2xl md:text-3xl font-serif text-white drop-shadow-lg">Catálogo Exclusivo</h2>
+                            <p className="text-gold-500/80 text-xs tracking-widest uppercase mt-1">Fragancias Importadas & Lujo</p>
+                        </div>
+                        
+                        <button onClick={() => setSortPrice(sortPrice === 'asc' ? 'desc' : sortPrice === 'desc' ? 'none' : 'asc')} className="bg-black/60 backdrop-blur border border-white/10 text-white px-4 py-2 rounded-full text-xs flex items-center gap-2 hover:bg-gold-600 hover:text-black transition-colors">
+                            <DollarSign size={14} /> 
+                            {sortPrice === 'asc' ? 'Menor Precio' : sortPrice === 'desc' ? 'Mayor Precio' : 'Ordenar por Precio'}
+                            {sortPrice === 'asc' ? <ChevronDown className="rotate-180" size={14}/> : sortPrice === 'desc' ? <ChevronDown size={14}/> : <ChevronsDown size={14} className="opacity-50"/>}
+                        </button>
+                    </div>
 
-    if (filterBrand !== 'Fabricante') {
-      result = result.filter(p => p.marca === filterBrand);
-    }
-    
-    if (filterGender !== 'Para Todos') {
-      result = result.filter(p => p.genero === filterGender);
-    }
+                    {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6 animate-fade-in">
+                            {filteredProducts.map(p => (
+                                <ProductGridItem key={p.id} product={p} onClick={() => setSelectedProduct(p)} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2 animate-fade-in">
+                            {filteredProducts.map(p => (
+                                <ProductListItem key={p.id} product={p} onClick={() => setSelectedProduct(p)} />
+                            ))}
+                        </div>
+                    )}
+                    
+                    {filteredProducts.length === 0 && (
+                        <div className="text-center py-20 opacity-50">
+                            <PackageX size={48} className="mx-auto mb-4"/>
+                            <p>No se encontraron productos con estos filtros.</p>
+                        </div>
+                    )}
+                </div>
+            </main>
 
-    if (searchTerm) {
-      const lower = searchTerm.toLowerCase();
-      result = result.filter(p => p.nombre.toLowerCase().includes(lower) || p.marca.toLowerCase().includes(lower));
-    }
-
-    if (sortPrice !== 'none') {
-      result.sort((a, b) => sortPrice === 'asc' ? a.precio_usd - b.precio_usd : b.precio_usd - a.precio_usd);
-    }
-
-    return result;
-  }, [products, filterBrand, filterGender, searchTerm, sortPrice]);
-
-  return (
-    <div className="min-h-screen bg-neutral-900 pb-20">
-      <Header />
-      <VideoHero />
-      
-      <div className="container mx-auto px-4 py-8 relative z-10">
-         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <div className="relative w-full md:max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar fragancia..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-black/60 backdrop-blur border border-neutral-800 rounded-full py-3 pl-10 pr-4 text-white focus:border-gold-600 outline-none transition-colors"
-                />
+            <FloatingPricingBar />
+            
+            {/* Chat Button */}
+            <div className="fixed bottom-6 right-6 z-40">
+                <button 
+                    onClick={() => setIsChatOpen(true)}
+                    className="bg-gold-600 hover:bg-gold-500 text-black p-4 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-110 flex items-center justify-center group"
+                >
+                    <MessageCircle size={28} className="group-hover:rotate-12 transition-transform" />
+                    <span className="absolute right-0 top-0 -mt-1 -mr-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                </button>
             </div>
-            <div className="flex items-center gap-2">
-                 <select value={sortPrice} onChange={(e) => setSortPrice(e.target.value as any)} className="bg-black/60 backdrop-blur text-gray-300 border border-neutral-800 rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:border-gold-600/50 transition-colors">
-                    <option value="none">Orden por Defecto</option>
-                    <option value="asc">Menor Precio</option>
-                    <option value="desc">Mayor Precio</option>
-                 </select>
-            </div>
-         </div>
 
-         {filteredProducts.length === 0 ? (
-            <div className="text-center py-20 text-gray-500 flex flex-col items-center gap-4">
-               <PackageX size={48} className="opacity-50" />
-               <p>No se encontraron productos que coincidan con tu búsqueda.</p>
-            </div>
-         ) : (
-             <div className={viewMode === 'grid' ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6 animate-fade-in" : "flex flex-col gap-2 animate-fade-in"}>
-                 {filteredProducts.map(product => (
-                    viewMode === 'grid' ? 
-                    <ProductGridItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} /> :
-                    <ProductListItem key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
-                 ))}
-             </div>
-         )}
-      </div>
-
-      <CartDrawer />
-      <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
-      
-      <FloatingPricingBar />
-
-      <button 
-        onClick={() => setIsPerkinsOpen(true)}
-        className="fixed bottom-24 right-6 md:bottom-10 z-40 bg-black border border-gold-600 rounded-full p-0 shadow-[0_0_30px_rgba(212,175,55,0.4)] hover:scale-110 transition-transform group w-16 h-16 flex items-center justify-center overflow-hidden"
-      >
-         <img src={PERKINS_IMAGES.EXCELENTE} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" />
-      </button>
-
-      {isPerkinsOpen && <PerkinsChatModal onClose={() => setIsPerkinsOpen(false)} />}
-      
-      <Footer />
-    </div>
-  );
+            {isChatOpen && <PerkinsChatModal onClose={() => setIsChatOpen(false)} />}
+            <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+            <Footer />
+        </div>
+    );
 };
 
 const App: React.FC = () => {

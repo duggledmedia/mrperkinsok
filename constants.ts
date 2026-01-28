@@ -58,7 +58,9 @@ const parseProductFromFilename = (filename: string, defaultPrice: number = 35, d
     precio_usd: defaultPrice,
     tags_olfativos: defaultTags,
     imageFile: filename,
-    stock: 10 // STOCK POR DEFECTO PARA TODOS LOS PRODUCTOS
+    stock: 10, // STOCK POR DEFECTO PARA TODOS LOS PRODUCTOS
+    margin_retail: 50, // MARGEN POR DEFECTO
+    margin_wholesale: 15 // MARGEN POR DEFECTO
   };
 };
 
