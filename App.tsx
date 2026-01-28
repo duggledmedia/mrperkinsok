@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Store } from 'lucide-react';
+import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Banknote, Phone, Clock, TrendingUp, Store } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -813,9 +813,6 @@ const CartDrawer: React.FC = () => {
     );
 };
 
-// ... AdminProductModal, AdminPanel, Catalog, App ...
-// (Returning full App content to avoid breaking the file structure provided by user)
-
 const AdminProductModal: React.FC<{ 
   product: Product | null, 
   onClose: () => void, 
@@ -1113,7 +1110,7 @@ const AdminPanel: React.FC = () => {
       <main className="flex-1 p-4 md:p-8 ml-0 md:ml-64 pb-24 md:pb-8 overflow-y-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'orders' && 'Gestión de Pedidos'}{activeTab === 'inventory' && 'Control de Stock'}{activeTab === 'users' && 'Administración de Usuarios'}</h2>
             <div className="flex items-center gap-2 mt-1">
                 <span className={`w-2 h-2 rounded-full ${syncStatus === 'synced' ? 'bg-green-500' : syncStatus === 'syncing' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
                 <span className="text-[10px] text-gray-500 uppercase">{syncStatus === 'synced' ? 'Sincronizado' : syncStatus === 'syncing' ? 'Guardando...' : 'Error de Conexión'}</span>
@@ -1488,27 +1485,25 @@ const Catalog: React.FC = () => {
           <FloatingPricingBar />
           
           {/* PERKINS FAB */}
-          <button onClick={() => setShowChat(true)} className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-black border-2 border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.4)] flex items-center justify-center overflow-hidden hover:scale-110 transition-transform group">
-              <img src={PERKINS_IMAGES.HOLA} className="w-full h-full object-cover" />
+          <button onClick={() => setShowChat(true)} className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-black border-2 border-gold-500 shadow-[0_0_20px_rgba(212,175,55,0.4)] flex items-center justify-center hover:scale-110 transition-transform cursor-pointer overflow-hidden group">
+               <img src={PERKINS_IMAGES.LOGO} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />
           </button>
-
-          <Footer />
       </div>
   );
 };
 
 const App: React.FC = () => {
-    return (
-        <Router>
-            <AppProvider>
-                <Routes>
-                    <Route path="/" element={<Catalog />} />
-                    <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="*" element={<Navigate to="/" />} />
-                </Routes>
-            </AppProvider>
-        </Router>
-    );
+  return (
+    <Router>
+      <AppProvider>
+        <Routes>
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/" element={<Catalog />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppProvider>
+    </Router>
+  );
 };
 
 export default App;
