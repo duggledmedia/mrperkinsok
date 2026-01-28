@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp } from 'lucide-react';
+import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -46,7 +46,7 @@ interface AppContextType {
   setIsCartOpen: (isOpen: boolean) => void;
   orders: Order[];
   addOrder: (order: Order) => void;
-  updateOrderStatus: (orderId: string, status: 'pending' | 'shipped' | 'delivered' | 'cancelled') => void;
+  updateOrderStatus: (orderId: string, status: 'pending' | 'shipped' | 'delivered') => void;
   fetchOrdersFromCalendar: () => void;
   
   // Auth & User Management
@@ -63,7 +63,6 @@ interface AppContextType {
   setDolarBlue: (val: number) => void;
   formatPrice: (ars: number) => string;
   calculateFinalPriceARS: (product: Product) => number;
-  calculateProductCostARS: (product: Product) => number;
   pricingMode: 'retail' | 'wholesale';
   setPricingMode: (mode: 'retail' | 'wholesale') => void;
   viewMode: 'grid' | 'list';
@@ -102,8 +101,11 @@ const PerkinsModal: React.FC<{ data: AlertData; onClose: () => void }> = ({ data
 };
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL INICIO
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(PRODUCTS.map(p => ({
+      ...p,
+      margin_retail: 50,
+      margin_wholesale: 15
+  })));
 
   useEffect(() => {
     const fetchUpdates = async () => {
@@ -112,10 +114,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         if (response.ok) {
           const overrides = await response.json();
           const productMap = new Map<string, Product>();
-          
-          // ELIMINADO EL MAPEO QUE FORZABA 50/15 AL ACTUALIZAR
           PRODUCTS.forEach(p => {
-             productMap.set(p.id, { ...p }); 
+             productMap.set(p.id, { ...p, margin_retail: 50, margin_wholesale: 15 });
           });
 
           Object.entries(overrides).forEach(([id, data]: [string, any]) => {
@@ -136,7 +136,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                           presentacion_ml: 100,
                           genero: 'Unisex',
                           image: 'https://via.placeholder.com/150',
-                          // No forzamos margenes aqui tampoco
+                          margin_retail: 50,
+                          margin_wholesale: 15,
                           ...data 
                       });
                   }
@@ -196,14 +197,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   const calculateFinalPriceARS = (product: Product): number => {
-    // CAMBIADO: Default es 0 si no existe margen configurado
-    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale || 0) : (product.margin_retail || 0);
+    const margin = pricingMode === 'wholesale' ? (product.margin_wholesale ?? 15) : (product.margin_retail ?? 50);
     const costoEnPesos = product.precio_usd * dolarBlue;
     return Math.ceil(costoEnPesos * (1 + margin / 100));
-  };
-
-  const calculateProductCostARS = (product: Product): number => {
-    return Math.ceil(product.precio_usd * dolarBlue);
   };
 
   const formatPrice = (ars: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(ars);
@@ -286,8 +282,10 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const clearCart = () => setCart([]);
   const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
   
-  const updateOrderStatus = (orderId: string, status: 'pending' | 'shipped' | 'delivered' | 'cancelled') => {
+  const updateOrderStatus = (orderId: string, status: 'pending' | 'shipped' | 'delivered') => {
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      // NOTA: Para persistir el cambio de estado en Google Calendar se requeriría un endpoint adicional de PATCH.
+      // Por ahora, el cambio es local para la sesión.
   };
 
   const login = (email: string, pass: string): boolean => {
@@ -311,7 +309,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       products, updateProduct, addNewProduct, deleteProduct, bulkUpdateMargins,
       cart, addToCart, decreaseFromCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, orders, addOrder, updateOrderStatus, fetchOrdersFromCalendar,
       currentUser, login, logout, users, addUser, toggleUserStatus, deleteUser, isAdmin: currentUser?.role === 'admin',
-      dolarBlue, setDolarBlue, formatPrice, calculateFinalPriceARS, calculateProductCostARS,
+      dolarBlue, setDolarBlue, formatPrice, calculateFinalPriceARS,
       pricingMode, setPricingMode, viewMode, setViewMode,
       filterBrand, setFilterBrand, filterGender, setFilterGender, sortPrice, setSortPrice, availableBrands, availableGenders,
       showAlert, closeAlert
@@ -413,7 +411,7 @@ const PerkinsChatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 const CartDrawer: React.FC = () => {
-    const { isCartOpen, setIsCartOpen, cart, clearCart, decreaseFromCart, addToCart, calculateFinalPriceARS, formatPrice, removeFromCart, addOrder, showAlert, calculateProductCostARS } = useStore();
+    const { isCartOpen, setIsCartOpen, cart, clearCart, decreaseFromCart, addToCart, calculateFinalPriceARS, formatPrice, removeFromCart, addOrder, showAlert } = useStore();
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [customerInfo, setCustomerInfo] = useState({ 
         name: '', 
@@ -436,7 +434,6 @@ const CartDrawer: React.FC = () => {
         
         setIsCheckingOut(true);
         const orderId = `ORD-${Date.now()}`;
-        const totalCost = cart.reduce((acc, item) => acc + (calculateProductCostARS(item) * item.quantity), 0);
         
         const fullOrderData = {
              orderId,
@@ -447,7 +444,6 @@ const CartDrawer: React.FC = () => {
              deliveryDate: customerInfo.date,
              items: cart,
              total: total,
-             totalCost: totalCost, // Enviamos el costo al backend
              paymentMethod,
              shippingMethod
         };
@@ -485,7 +481,6 @@ const CartDrawer: React.FC = () => {
                     id: orderId, 
                     items: [...cart], 
                     total: total, 
-                    cost: totalCost,
                     customerName: customerInfo.name, 
                     phone: customerInfo.phone,
                     address: customerInfo.address, 
@@ -661,10 +656,7 @@ const AdminProductModal: React.FC<{
             setFormData({
                 nombre: '', marca: '', precio_usd: 0, stock: 0, 
                 presentacion_ml: 100, genero: 'Unisex', 
-                tags_olfativos: [], 
-                // AQUI TAMBIEN ELIMINADOS LOS DEFAULTS DE 50/15
-                margin_retail: 0, 
-                margin_wholesale: 0,
+                tags_olfativos: [], margin_retail: 50, margin_wholesale: 15,
                 image: 'https://via.placeholder.com/300?text=No+Image'
             });
         }
@@ -682,8 +674,8 @@ const AdminProductModal: React.FC<{
                 genero: formData.genero || 'Unisex',
                 tags_olfativos: formData.tags_olfativos || [],
                 image: formData.image,
-                margin_retail: Number(formData.margin_retail) || 0, // DEFAULT 0
-                margin_wholesale: Number(formData.margin_wholesale) || 0 // DEFAULT 0
+                margin_retail: Number(formData.margin_retail) || 50,
+                margin_wholesale: Number(formData.margin_wholesale) || 15
             } as Product;
             onCreate(newProduct);
         } else if (product && onSave) {
@@ -728,13 +720,11 @@ const AdminProductModal: React.FC<{
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-green-500 uppercase font-bold">Margen Minorista (%)</label>
-                             {/* DEFAULT 0 EN UI */}
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 0} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_retail || 50} onChange={e => setFormData({...formData, margin_retail: Number(e.target.value)})} />
                         </div>
                         <div className="p-3 bg-neutral-800/30 rounded border border-neutral-800">
                              <label className="text-xs text-blue-500 uppercase font-bold">Margen Mayorista (%)</label>
-                             {/* DEFAULT 0 EN UI */}
-                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 0} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
+                             <input type="number" className="w-full bg-black border border-neutral-700 rounded p-2 text-white" value={formData.margin_wholesale || 15} onChange={e => setFormData({...formData, margin_wholesale: Number(e.target.value)})} />
                         </div>
                         <div className="col-span-2">
                              <label className="text-xs text-gray-500 uppercase">Tags Olfativos</label>
@@ -760,7 +750,7 @@ const AdminPanel: React.FC = () => {
   const { 
     orders, currentUser, login, logout, formatPrice, products, updateProduct, addNewProduct, deleteProduct,
     bulkUpdateMargins, users, addUser, toggleUserStatus, deleteUser,
-    showAlert, addOrder, dolarBlue, setDolarBlue, updateOrderStatus, calculateFinalPriceARS, calculateProductCostARS
+    showAlert, addOrder, dolarBlue, setDolarBlue, updateOrderStatus, calculateFinalPriceARS
   } = useStore();
 
   const [email, setEmail] = useState('');
@@ -789,12 +779,6 @@ const AdminPanel: React.FC = () => {
 
   const filteredInventory = products.filter(p => !p.deleted && (p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || p.marca.toLowerCase().includes(searchTerm.toLowerCase())));
 
-  // METRICAS
-  const activeOrders = orders.filter(o => o.status !== 'cancelled');
-  const totalRevenue = activeOrders.reduce((acc, o) => acc + o.total, 0);
-  const totalCost = activeOrders.reduce((acc, o) => acc + (o.cost || 0), 0);
-  const estimatedProfit = totalRevenue - totalCost;
-
   const handleCreateUser = () => {
      if(!newUserEmail || !newUserPass || !newUserName) { showAlert("Error", "Complete todos los campos.", "error"); return; }
      if(users.some(u => u.email === newUserEmail)) { showAlert("Error", "El email ya está registrado.", "error"); return; }
@@ -819,7 +803,6 @@ const AdminPanel: React.FC = () => {
       if(!manualCustomerInfo.name || manualCart.length === 0) { showAlert("Error", "Ingrese nombre y productos.", "error"); return; }
       
       const total = manualCart.reduce((acc, item) => acc + (calculateFinalPriceARS(item) * item.quantity), 0);
-      const cost = manualCart.reduce((acc, item) => acc + (calculateProductCostARS(item) * item.quantity), 0);
       const orderId = `MAN-${Date.now()}`;
       
       const newOrder: Order = { 
@@ -829,7 +812,6 @@ const AdminPanel: React.FC = () => {
         address: manualCustomerInfo.address,
         city: manualCustomerInfo.city,
         total, 
-        cost,
         items: manualCart, 
         deliveryDate: manualCustomerInfo.date, 
         status: 'delivered', 
@@ -853,7 +835,6 @@ const AdminPanel: React.FC = () => {
                  deliveryDate: manualCustomerInfo.date,
                  items: manualCart,
                  total,
-                 totalCost: cost, // Enviamos el costo
                  paymentMethod: manualPaymentMethod,
                  shippingMethod: manualShippingMethod
              }) 
@@ -937,28 +918,11 @@ const AdminPanel: React.FC = () => {
 
         {activeTab === 'orders' && (
             <div className="space-y-6">
-                 {/* KPI DASHBOARD */}
                  <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 w-full md:w-auto md:flex-1 md:mr-4">
-                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg">
-                            <h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Total Pedidos</h3>
-                            <span className="text-xl md:text-2xl font-serif text-white">{orders.length}</span>
-                        </div>
-                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg">
-                            <h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Pendientes</h3>
-                            <span className="text-xl md:text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span>
-                        </div>
-                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg">
-                            <h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Facturación</h3>
-                            <span className="text-lg md:text-xl font-serif text-white">{formatPrice(totalRevenue)}</span>
-                        </div>
-                        {currentUser.role === 'admin' && (
-                            <div className="bg-black border border-green-900/30 p-3 md:p-4 rounded-lg relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity"><TrendingUp size={40} className="text-green-500"/></div>
-                                <h3 className="text-green-600 text-[10px] md:text-xs uppercase tracking-wider mb-2 font-bold">Ganancia Est.</h3>
-                                <span className="text-lg md:text-xl font-serif text-green-500">{formatPrice(estimatedProfit)}</span>
-                            </div>
-                        )}
+                     <div className="grid grid-cols-3 gap-2 md:gap-4 w-full md:w-auto md:flex-1 md:mr-4">
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Total</h3><span className="text-xl md:text-2xl font-serif text-white">{orders.length}</span></div>
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Pendientes</h3><span className="text-xl md:text-2xl font-serif text-gold-500">{orders.filter(o => o.status === 'pending').length}</span></div>
+                        <div className="bg-black border border-neutral-800 p-3 md:p-4 rounded-lg"><h3 className="text-gray-500 text-[10px] md:text-xs uppercase tracking-wider mb-2">Facturación</h3><span className="text-lg md:text-xl font-serif text-white">{formatPrice(orders.reduce((acc, o) => acc + o.total, 0))}</span></div>
                      </div>
                      <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nueva Venta</button>
                  </div>
@@ -1028,25 +992,23 @@ const AdminPanel: React.FC = () => {
                  <div className="bg-black border border-neutral-800 rounded-lg overflow-hidden">
                     {orders.length === 0 ? <div className="p-12 text-center text-gray-500"><ClipboardList size={48} className="mx-auto mb-4 opacity-20" /><p>No hay pedidos registrados.</p></div> : (
                       <div className="divide-y divide-neutral-800">{orders.map(order => (
-                          <div key={order.id} className={`p-4 md:p-6 transition-colors ${order.status === 'cancelled' ? 'bg-red-900/10 opacity-60 grayscale-[0.5]' : 'hover:bg-neutral-900/50'}`}>
+                          <div key={order.id} className="p-4 md:p-6 hover:bg-neutral-900/50 transition-colors">
                             <div className="flex flex-col md:flex-row justify-between mb-2 gap-4">
                                <div className="flex-1">
                                    <div className="flex items-center gap-3 mb-2">
-                                       <span className={`text-sm font-bold px-2 rounded ${order.status === 'cancelled' ? 'bg-red-900/30 text-red-500 line-through' : 'bg-gold-900/20 text-gold-500'}`}>{order.id}</span>
+                                       <span className="text-gold-500 font-bold text-sm bg-gold-900/20 px-2 rounded">{order.id}</span>
                                        <select 
                                             value={order.status} 
-                                            onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                                            onChange={(e) => updateOrderStatus(order.id, e.target.value as 'pending'|'shipped'|'delivered')}
                                             className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold outline-none cursor-pointer ${
                                                 order.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-900' :
                                                 order.status === 'shipped' ? 'bg-blue-900/30 text-blue-500 border-blue-900' :
-                                                order.status === 'cancelled' ? 'bg-red-900/30 text-red-500 border-red-900' :
                                                 'bg-green-900/30 text-green-500 border-green-900'
                                             }`}
                                        >
                                            <option value="pending">Pendiente</option>
                                            <option value="shipped">Enviado</option>
                                            <option value="delivered">Entregado / Cobrado</option>
-                                           <option value="cancelled">Cancelado</option>
                                        </select>
                                    </div>
                                    
@@ -1072,15 +1034,12 @@ const AdminPanel: React.FC = () => {
                                    </div>
                                </div>
                                <div className="flex flex-col justify-between items-end min-w-[120px]">
-                                   <div className={`font-bold text-2xl ${order.status === 'cancelled' ? 'text-gray-600 line-through' : 'text-gold-500'}`}>{formatPrice(order.total)}</div>
-                                   {currentUser.role === 'admin' && order.status !== 'cancelled' && (
-                                       <span className="text-[10px] text-gray-600" title="Costo Mercadería">Costo: {formatPrice(order.cost || 0)}</span>
-                                   )}
+                                   <div className="text-gold-500 font-bold text-2xl">{formatPrice(order.total)}</div>
                                </div>
                             </div>
                             
                             {/* ITEMS TABLE IN ORDER */}
-                            {order.items.length > 0 && order.status !== 'cancelled' && (
+                            {order.items.length > 0 && (
                                 <div className="mt-4 bg-black/40 rounded border border-neutral-800 overflow-hidden">
                                     <table className="w-full text-left text-xs text-gray-400">
                                         <thead className="bg-neutral-800 text-gray-500">
@@ -1088,7 +1047,7 @@ const AdminPanel: React.FC = () => {
                                         </thead>
                                         <tbody>
                                             {order.items.map((item, idx) => {
-                                                const unitPrice = item.precio_usd * dolarBlue * (1 + (item.margin_retail||0)/100);
+                                                const unitPrice = item.precio_usd * dolarBlue * (1 + (item.margin_retail||50)/100);
                                                 return (
                                                     <tr key={idx} className="border-b border-neutral-800/50 last:border-0">
                                                         <td className="p-2 text-white">{item.nombre}</td>
@@ -1109,7 +1068,6 @@ const AdminPanel: React.FC = () => {
             </div>
         )}
 
-        {/* ... (Inventory and User tabs remain unchanged) ... */}
         {activeTab === 'inventory' && (
           <div className="space-y-6">
              {currentUser.role === 'admin' && (
@@ -1140,7 +1098,7 @@ const AdminPanel: React.FC = () => {
             <div className="md:hidden grid grid-cols-1 gap-4">
                 {filteredInventory.map(product => {
                      const costoARS = Math.ceil(product.precio_usd * dolarBlue);
-                     const retailPrice = costoARS * (1 + (product.margin_retail || 0)/100);
+                     const retailPrice = costoARS * (1 + (product.margin_retail || 50)/100);
                      return (
                         <div key={product.id} className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-xl flex gap-4 items-center">
                             <div className="w-16 h-16 rounded-lg bg-black overflow-hidden flex-shrink-0 border border-neutral-800">
@@ -1181,8 +1139,7 @@ const AdminPanel: React.FC = () => {
                  <tbody className="divide-y divide-neutral-800">
                    {filteredInventory.map(product => {
                        const costoARS = Math.ceil(product.precio_usd * dolarBlue);
-                       // CAMBIADO: Default es 0
-                       const retailPrice = costoARS * (1 + (product.margin_retail || 0)/100);
+                       const retailPrice = costoARS * (1 + (product.margin_retail || 50)/100);
                        
                        return (
                          <tr key={product.id} className="hover:bg-neutral-900/30 transition-colors group">
@@ -1193,7 +1150,7 @@ const AdminPanel: React.FC = () => {
                                     <td className="p-4 text-center font-bold text-gray-300">${product.precio_usd}</td>
                                     <td className="p-4 text-center text-gray-600 font-mono text-xs">{formatPrice(costoARS)}</td>
                                     
-                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail || 0}</span><span className="text-xs text-gray-500">%</span></div></td>
+                                    <td className="p-4 text-center bg-neutral-800/30"><div className="flex items-center justify-center gap-1"><span className="text-green-400 font-bold">{product.margin_retail || 50}</span><span className="text-xs text-gray-500">%</span></div></td>
                                     <td className="p-4 text-center bg-neutral-800/30 text-green-400 font-bold">{formatPrice(retailPrice)}</td>
                                     
                                     <td className="p-4 text-center"><span className={`font-bold ${product.stock === 0 ? 'text-red-500' : 'text-white'}`}>{product.stock}</span></td>
