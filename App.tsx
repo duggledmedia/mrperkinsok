@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Download, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Cloud, CloudOff, Store } from 'lucide-react';
+import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, Filter, ChevronDown, SlidersHorizontal, ImageOff, AlertTriangle, CheckCircle, MapPin, Calendar, DollarSign, ExternalLink, Loader2, PackageX, Box, ClipboardList, LogOut, Lock, Search, Edit3, Plus, Minus, ChevronsDown, Percent, Users, UserPlus, Mail, Shield, Eye, LayoutGrid, List, MessageCircle, Crown, RefreshCw, Trash2, Save, Menu, Banknote, Phone, Clock, TrendingUp, Store } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -701,7 +701,7 @@ const CartDrawer: React.FC = () => {
                                             
                                             {checkingWeather ? (
                                                 <div className="flex items-center gap-2 text-xs text-gold-500 animate-pulse">
-                                                    <Cloud size={12}/> Chequeando clima (weather.com)...
+                                                    <span>☁️ Chequeando clima (weather.com)...</span>
                                                 </div>
                                             ) : (
                                                 <label className="flex items-center gap-2 cursor-pointer group">
