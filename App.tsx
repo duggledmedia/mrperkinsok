@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, ClipboardList, LogOut, Lock, Search, Edit3, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Banknote, Phone, Clock, TrendingUp, Box, Plus } from 'lucide-react';
+import { ShoppingBag, X, Truck, User as UserIcon, Send, CreditCard, ImageOff, AlertTriangle, CheckCircle, MapPin, Loader2, ClipboardList, LogOut, Lock, Search, Edit3, Users, UserPlus, Shield, LayoutGrid, List, Trash2, Save, Phone } from 'lucide-react';
 import { PRODUCTS, PERKINS_IMAGES } from './constants';
 import { Product, CartItem, Order, ChatMessage, ChatRole, User, UserRole, PaymentMethod, ShippingMethod } from './types';
 import { sendMessageToPerkins, isApiKeyConfigured } from './services/geminiService';
@@ -413,7 +413,7 @@ const QuantityControl: React.FC<{ product: Product, quantityInCart: number, onAd
   const isOutOfStock = product.stock <= 0;
   if (isOutOfStock) return null;
   if (quantityInCart === 0) return <button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`bg-neutral-800 hover:bg-gold-600 hover:text-black text-gold-500 border border-gold-600/50 rounded flex items-center justify-center transition-colors uppercase tracking-widest ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-3 py-1.5'}`}>Agregar</button>;
-  return <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-5' : 'h-8'}`}><button onClick={(e) => { e.stopPropagation(); onRemove(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold">-</span></button><span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-5 text-[9px]' : 'w-8 text-sm'}`}>{quantityInCart}</span><button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold">+</span></button></div>;
+  return <div className={`flex items-center bg-neutral-900 border border-gold-600/30 rounded overflow-hidden ${compact ? 'h-5' : 'h-8'}`}><button onClick={(e) => { e.stopPropagation(); onRemove(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold text-white">-</span></button><span className={`flex items-center justify-center bg-black text-white font-bold border-x border-gold-600/30 ${compact ? 'w-5 text-[9px]' : 'w-8 text-sm'}`}>{quantityInCart}</span><button onClick={(e) => { e.stopPropagation(); onAdd(); }} className={`flex items-center justify-center hover:bg-gold-600/20 text-gold-500 transition-colors ${compact ? 'w-5 h-full' : 'w-8 h-full'}`}><span className="text-sm font-bold text-white">+</span></button></div>;
 };
 
 const Header: React.FC = () => {
@@ -484,20 +484,15 @@ const CartDrawer: React.FC = () => {
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mercadopago');
     const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('caba');
     
-    // --- NUEVOS ESTADOS PARA ENVÍO ---
     const [isRaining, setIsRaining] = useState(false);
     const [payShippingNow, setPayShippingNow] = useState(false);
     const [checkingWeather, setCheckingWeather] = useState(false);
 
     if (!isCartOpen) return null;
 
-    // --- CÁLCULO DE COSTOS ---
-    const safeCart = cart || []; // Safety check
+    const safeCart = cart || []; 
     const cartTotal = safeCart.reduce((acc, item) => acc + calculateFinalPriceARS(item) * item.quantity, 0);
     const totalItems = safeCart.reduce((acc, item) => acc + item.quantity, 0);
-    
-    // Volumetría para Via Cargo (15x10x10 cm por item)
-    // 1 bulto estándar de 15x10x10 = 1500 cm3
     const totalVolumeCm3 = totalItems * 1500;
     
     let shippingCost = 0;
@@ -505,8 +500,6 @@ const CartDrawer: React.FC = () => {
         const baseCost = 7500;
         shippingCost = isRaining ? Math.ceil(baseCost * 1.5) : baseCost;
     } else {
-        // Para interior es "Pago en Destino" (0 ahora)
-        // Para retiro es 0
         shippingCost = 0;
     }
 
@@ -515,7 +508,6 @@ const CartDrawer: React.FC = () => {
     const checkWeather = async () => {
         setCheckingWeather(true);
         try {
-            // OpenMeteo for Buenos Aires (Lat: -34.6037, Long: -58.3816)
             const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-34.6037&longitude=-58.3816&current=weather_code&timezone=America%2FSao_Paulo');
             const data = await res.json();
             const code = data.current?.weather_code;
@@ -545,17 +537,14 @@ const CartDrawer: React.FC = () => {
             return; 
         }
 
-        // 1. VALIDAR HORA (15 a 21)
         const [hours] = customerInfo.time.split(':').map(Number);
         if (hours < 15 || hours >= 21) {
             showAlert("Horario Inválido", "Las entregas se realizan EXCLUSIVAMENTE entre las 15:00 y las 21:00 hs.", "error");
             return;
         }
 
-        // 2. VALIDAR DIA (Lun-Sab, NO Domingos)
         const dateObj = new Date(customerInfo.date + 'T00:00:00'); 
-        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        
+        const dayOfWeek = dateObj.getDay(); 
         if (dayOfWeek === 0) {
            showAlert("Día Inválido", "No realizamos entregas los domingos. Por favor seleccione de Lunes a Sábado.", "error");
            return;
@@ -773,7 +762,7 @@ const CartDrawer: React.FC = () => {
                                     </button>
                                     <button onClick={() => setPaymentMethod('cash')} className={`w-full flex items-center justify-between p-3 rounded border transition-colors ${paymentMethod === 'cash' ? 'bg-green-900/20 border-green-500' : 'bg-transparent border-neutral-700 hover:bg-neutral-800'}`}>
                                         <div className="flex items-center gap-2">
-                                            <Banknote className={paymentMethod === 'cash' ? 'text-green-500' : 'text-gray-500'} size={18} />
+                                            <div className="font-bold text-lg">💵</div>
                                             <span className={`text-sm font-bold ${paymentMethod === 'cash' ? 'text-green-400' : 'text-gray-400'}`}>Efectivo Contra Entrega</span>
                                         </div>
                                         {paymentMethod === 'cash' && <CheckCircle size={16} className="text-green-500"/>}
@@ -814,7 +803,6 @@ const CartDrawer: React.FC = () => {
 };
 
 // ... AdminProductModal, AdminPanel, Catalog, App ...
-// (Returning full App content to avoid breaking the file structure provided by user)
 
 const AdminProductModal: React.FC<{ 
   product: Product | null, 
@@ -1085,7 +1073,7 @@ const AdminPanel: React.FC = () => {
               <span className="text-[10px] uppercase font-bold">Pedidos</span>
           </button>
           <button onClick={() => setActiveTab('inventory')} className={`flex flex-col items-center gap-1 ${activeTab === 'inventory' ? 'text-gold-500' : 'text-gray-500'}`}>
-              <Box size={20}/>
+              <div className="font-bold text-lg">📦</div>
               <span className="text-[10px] uppercase font-bold">Stock</span>
           </button>
           {currentUser.role === 'admin' && (
@@ -1104,7 +1092,7 @@ const AdminPanel: React.FC = () => {
         <div className="p-6 border-b border-neutral-800"><h1 className="text-xl font-serif text-gold-500 tracking-wider">MR. PERKINS</h1><span className="text-xs text-gray-500 uppercase tracking-widest flex items-center gap-1">{currentUser.role === 'admin' ? <Shield size={10} className="text-gold-500"/> : <UserIcon size={10}/>}{currentUser.role === 'admin' ? 'Administrador' : 'Vendedor'}</span></div>
         <nav className="flex-1 p-4 space-y-2">
           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'orders' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><ClipboardList size={20} /><span className="font-medium">Pedidos</span></button>
-          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Box size={20} /><span className="font-medium">Inventario</span></button>
+          <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><div className="font-bold text-lg">📦</div><span className="font-medium">Inventario</span></button>
           {currentUser.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-gold-600/20 text-gold-400 border border-gold-600/30' : 'text-gray-400 hover:bg-neutral-900'}`}><Users size={20} /><span className="font-medium">Usuarios</span></button>}
         </nav>
         <div className="p-4 border-t border-neutral-800"><div className="mb-4 px-2"><p className="text-xs text-gray-500">Sesión iniciada como:</p><p className="text-sm font-bold text-white truncate flex items-center gap-2">{currentUser.name} {isApiConfigured && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Sistema IA Operativo"></span>}</p></div><button onClick={logout} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"><LogOut size={16} /> Cerrar Sesión</button></div>
@@ -1145,13 +1133,12 @@ const AdminPanel: React.FC = () => {
                         </div>
                         {currentUser.role === 'admin' && (
                             <div className="bg-black border border-green-900/30 p-3 md:p-4 rounded-lg relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity"><TrendingUp size={40} className="text-green-500"/></div>
                                 <h3 className="text-green-600 text-[10px] md:text-xs uppercase tracking-wider mb-2 font-bold">Ganancia Est.</h3>
                                 <span className="text-lg md:text-xl font-serif text-green-500">{formatPrice(estimatedProfit)}</span>
                             </div>
                         )}
                      </div>
-                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><Plus size={20} /> Nueva Venta</button>
+                     <button onClick={() => setShowManualOrder(!showManualOrder)} className="w-full md:w-auto bg-gold-600 text-black font-bold py-3 px-6 rounded-lg hover:bg-gold-500 flex items-center justify-center gap-2"><span className="text-xl font-bold">+</span> Nueva Venta</button>
                  </div>
                  
                  {showManualOrder && (
@@ -1269,7 +1256,7 @@ const AdminPanel: React.FC = () => {
                                             <div className="flex gap-2 mb-1">
                                                 {order.paymentMethod === 'mercadopago' ? 
                                                     <span className="text-[10px] flex items-center gap-1 text-blue-400 border border-blue-900 px-1 rounded bg-blue-900/20"><CreditCard size={10}/> MP</span> : 
-                                                    <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><Banknote size={10}/> Efectivo</span>
+                                                    <span className="text-[10px] flex items-center gap-1 text-green-400 border border-green-900 px-1 rounded bg-green-900/20"><div className="font-bold text-xs">💵</div> Efectivo</span>
                                                 }
                                                 {order.shippingMethod === 'caba' ? 
                                                     <span className="text-[10px] flex items-center gap-1 text-purple-400 border border-purple-900 px-1 rounded bg-purple-900/20"><Truck size={10}/> Moto</span> : 
@@ -1278,7 +1265,7 @@ const AdminPanel: React.FC = () => {
                                                     <span className="text-[10px] flex items-center gap-1 text-orange-400 border border-orange-900 px-1 rounded bg-orange-900/20"><div className="w-2.5 h-2.5 flex items-center justify-center font-bold text-[8px]">📦</div> Interior</span>
                                                 }
                                             </div>
-                                            <p className="flex items-center gap-2"><Clock size={12}/> Entrega: {order.deliveryDate}</p>
+                                            <p className="flex items-center gap-2"><div className="font-bold text-xs">🕒</div> Entrega: {order.deliveryDate}</p>
                                        </div>
                                    </div>
                                </div>
@@ -1346,7 +1333,7 @@ const AdminPanel: React.FC = () => {
                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/>
                        <input className="bg-neutral-900 border border-neutral-700 rounded-full pl-10 pr-4 py-2 text-sm text-white w-64 outline-none focus:border-gold-500" placeholder="Buscar producto..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
                    </div>
-                   <button onClick={() => { setEditingProduct(null); setIsCreatingProduct(true); }} className="bg-gold-600 text-black px-4 py-2 rounded font-bold hover:bg-gold-500 flex items-center gap-2"><Plus size={16}/> Nuevo</button>
+                   <button onClick={() => { setEditingProduct(null); setIsCreatingProduct(true); }} className="bg-gold-600 text-black px-4 py-2 rounded font-bold hover:bg-gold-500 flex items-center gap-2"><span className="text-xl font-bold">+</span> Nuevo</button>
                </div>
             </div>
 

@@ -1,46 +1,18 @@
 import { GoogleGenAI, Chat } from "@google/genai";
 import { Product } from "../types";
 
-// Función para obtener la API KEY de forma segura en distintos entornos
-const getApiKey = (): string => {
-  // 1. Intenta leer variables de entorno estándar (Node/Vercel/Webpack)
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-  } catch (e) {}
-
-  // 2. Intenta leer variables de entorno de Vite
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) {}
-
-  // 3. FALLBACK MANUAL:
-  const manualKey = ''; 
-  
-  return manualKey;
-};
-
-const API_KEY = getApiKey();
-
 // Helper para verificar configuración desde la UI
 export const isApiKeyConfigured = (): boolean => {
-  return !!API_KEY && API_KEY.length > 10;
+  return !!process.env.API_KEY;
 };
 
 let chatSession: Chat | null = null;
 
 // Modified to accept dynamic product list
 const createPerkinsSession = (currentProducts: Product[], exchangeRate: number = 1200): Chat => {
-  if (!API_KEY) {
-    throw new Error("API Key missing");
-  }
-
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  // Always use process.env.API_KEY directly as per guidelines.
+  // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // Use the passed 'currentProducts' which includes CMS updates
   const productContext = currentProducts.map(p => {
@@ -53,6 +25,7 @@ const createPerkinsSession = (currentProducts: Product[], exchangeRate: number =
     return `- ${p.nombre} (${p.genero}) ${stockStatus}: aprox $${finalPrice.toLocaleString('es-AR')} ARS. Notas: ${p.tags_olfativos.join(', ')}`;
   }).join('\n');
 
+  // Use recommended model 'gemini-3-flash-preview' for basic text tasks (chatbot persona)
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
@@ -74,7 +47,7 @@ const createPerkinsSession = (currentProducts: Product[], exchangeRate: number =
 };
 
 export const sendMessageToPerkins = async (message: string, currentExchangeRate: number, products: Product[]): Promise<string> => {
-  if (!API_KEY) {
+  if (!process.env.API_KEY) {
     console.warn("API KEY no encontrada.");
     return "Disculpe, mis conexiones neuronales están en mantenimiento. (Error: Falta configurar la API KEY en Vercel).";
   }
