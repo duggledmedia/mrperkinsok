@@ -124,23 +124,53 @@ app.post('/api/bulk-update', async (req, res) => {
 
 // 1. CREAR PEDIDO
 app.post('/api/schedule_delivery', async (req, res) => {
-  const { orderId, customerName, address, city, deliveryDate, items, total, totalCost, phone, paymentMethod, shippingMethod } = req.body;
+  const { orderId, customerName, address, city, deliveryDate, items, total, totalCost, phone, paymentMethod, shippingMethod, shippingCost, payShippingNow } = req.body;
 
   let googleEventId = null;
+
+  // Construir descripción detallada
+  let shippingDetails = '';
+  if (shippingMethod === 'caba') {
+      shippingDetails = `Moto CABA ($${shippingCost}). ${payShippingNow ? '✅ PAGADO EN COMPRA' : '❗ COBRAR ENVÍO AL ENTREGAR'}`;
+  } else if (shippingMethod === 'pickup') {
+      shippingDetails = `Retiro por Local (Belgrano). Gratis.`;
+  } else {
+      shippingDetails = `Interior (Via Cargo). ❗ COBRAR ENVÍO EN DESTINO.`;
+  }
 
   // 1. Intentar crear en Google Calendar (Visual)
   if (calendarClient) {
     try {
-      const startDate = `${deliveryDate}T09:00:00-03:00`;
-      const endDate = `${deliveryDate}T18:00:00-03:00`;
-      const description = `🆔 ID: ${orderId}\n👤 Cliente: ${customerName}\n📞 Teléfono: ${phone || 'N/A'}\n📍 Dirección: ${address}, ${city}\n💰 Total: $${total}\n📦 Items:\n${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}`;
+      let startDateTime, endDateTime;
+      if (deliveryDate.includes(' ')) {
+          const [datePart, timePart] = deliveryDate.split(' ');
+          startDateTime = `${datePart}T${timePart}:00-03:00`;
+          const [hours, minutes] = timePart.split(':').map(Number);
+          endDateTime = `${datePart}T${hours + 1}:${minutes}:00-03:00`;
+      } else {
+          startDateTime = `${deliveryDate}T09:00:00-03:00`;
+          endDateTime = `${deliveryDate}T18:00:00-03:00`;
+      }
+
+      const description = `
+🆔 ID: ${orderId}
+👤 Cliente: ${customerName}
+📞 Teléfono: ${phone || 'N/A'}
+📍 Dirección: ${address}, ${city || ''}
+🚚 Envío: ${shippingDetails}
+💳 Pago: ${paymentMethod === 'mercadopago' ? 'MercadoPago (Online)' : 'Efectivo (Contra Entrega)'}
+💰 Total Pedido: $${total}
+
+📦 Items:
+${items.map(i => `- ${i.quantity}x ${i.nombre}`).join('\n')}
+      `;
       
       const event = {
         summary: `🛍️ Pedido Mr. Perkins: ${customerName}`,
-        location: `${address}, ${city}`,
+        location: `${address}, ${city || ''}`,
         description: description,
-        start: { dateTime: startDate, timeZone: 'America/Argentina/Buenos_Aires' },
-        end: { dateTime: endDate, timeZone: 'America/Argentina/Buenos_Aires' },
+        start: { dateTime: startDateTime, timeZone: 'America/Argentina/Buenos_Aires' },
+        end: { dateTime: endDateTime, timeZone: 'America/Argentina/Buenos_Aires' },
         colorId: paymentMethod === 'mercadopago' ? '10' : '5',
       };
 
@@ -219,15 +249,10 @@ app.get('/api/get_orders', async (req, res) => {
 
 // 3. ACTUALIZAR ESTADO
 app.post('/api/update_order_status', async (req, res) => {
-    const { googleEventId, status } = req.body; // En local usamos googleEventId para buscar, o podríamos pasar el Order ID
+    const { googleEventId, status } = req.body; 
 
     try {
-        // 1. Actualizar Supabase (Buscamos por googleEventId o ID si lo tuvieramos, el front manda googleEventId a veces)
-        // El front en updateOrderStatus pasa googleEventId. Lo ideal sería pasar orderId.
-        // Asumiremos que tenemos el googleEventId para vincular. 
-        // *MEJORA*: El front debería pasar el Order ID para DB update.
-        // Pero para mantener compatibilidad con el código actual del front:
-        
+        // 1. Actualizar Supabase 
         if (googleEventId) {
              const { error } = await supabase
                 .from('orders')

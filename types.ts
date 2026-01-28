@@ -19,7 +19,7 @@ export interface CartItem extends Product {
 }
 
 export type PaymentMethod = 'mercadopago' | 'cash';
-export type ShippingMethod = 'caba' | 'interior';
+export type ShippingMethod = 'caba' | 'interior' | 'pickup';
 
 export interface Order {
   id: string;
@@ -32,6 +32,9 @@ export interface Order {
   address: string;
   city?: string; // Localidad
   deliveryDate: string;
+  deliveryTime?: string; // Horario de entrega
+  shippingCost?: number; // Costo de envío
+  payShippingNow?: boolean; // Si el envío se pagó con la compra
   status: 'pending' | 'shipped' | 'delivered' | 'cancelled';
   timestamp: number;
   type: 'retail' | 'wholesale'; // Tipo de orden
