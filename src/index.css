@@ -76,3 +76,49 @@
   animation: float 3.5s ease-in-out 1.75s infinite;
 }
 
+/* Animated White to Light-Gray Gradient Shimmer Background */
+@keyframes gradient-bg {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-shimmer {
+  background: linear-gradient(-45deg, #ffffff, #f8fafc, #e2e8f0, #ffffff);
+  background-size: 300% 300%;
+  animation: gradient-bg 8s ease infinite;
+}
+
+/* Always Visible Custom Brutalist Scrollbar for Brand Carousel */
+.brand-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #facc15 #e2e8f0;
+}
+
+.brand-scrollbar::-webkit-scrollbar {
+  height: 10px !important;
+  display: block !important;
+}
+
+.brand-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border: 2px solid #000000;
+  border-radius: 0px;
+}
+
+.brand-scrollbar::-webkit-scrollbar-thumb {
+  background: #facc15;
+  border: 2px solid #000000;
+  border-radius: 0px;
+}
+
+.brand-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ec4899;
+}
+
