@@ -18,10 +18,18 @@ async function fetchImageFile(imageUrl: string, fileName: string): Promise<File 
 }
 
 /**
+ * Helper to get clean product URL
+ */
+export function getProductPageUrl(productId: string): string {
+  if (typeof window === 'undefined') return `/producto/${encodeURIComponent(productId)}`;
+  return `${window.location.origin}/producto/${encodeURIComponent(productId)}`;
+}
+
+/**
  * Copies product URL or uses Web Share API (attaching image file when supported)
  */
 export async function shareProductLink(product: Product): Promise<{ success: boolean; method: string }> {
-  const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
+  const url = getProductPageUrl(product.id);
   const title = `MR. PERKINS - ${product.producto}`;
   const text = `🔥 ¡Mirá ${product.producto} (${product.marca}) por $${product.precioVenta.toLocaleString('es-AR')} en MR. PERKINS!\n\n🔗 ${url}`;
 
@@ -75,14 +83,14 @@ export async function shareProductLink(product: Product): Promise<{ success: boo
  * Formats WhatsApp direct share URL for a product without embedding raw image URL link in text
  */
 export function getWhatsAppProductShareUrl(product: Product): string {
-  const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
+  const url = getProductPageUrl(product.id);
   const text = encodeURIComponent(
     `🔥 *¡Mirá este producto en MR. PERKINS!*\n\n` +
     `*${product.producto}*\n` +
     `*Marca:* ${product.marca}\n` +
     `*Cantidad:* ${product.cantidad}\n` +
     `*Precio:* $${product.precioVenta.toLocaleString('es-AR')} ARS\n\n` +
-    `🔗 *Ver en la web:* ${url}`
+    `🔗 *Ver producto:* ${url}`
   );
   return `https://api.whatsapp.com/send?text=${text}`;
 }
@@ -142,7 +150,7 @@ export function updateOpenGraphMeta(product: Product | null) {
     const title = `${product.producto} - MR. PERKINS`;
     const desc = `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
     const img = product.imgUrl;
-    const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
+    const url = getProductPageUrl(product.id);
 
     setMeta('property', 'og:title', title);
     setMeta('property', 'og:description', desc);

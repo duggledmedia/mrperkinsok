@@ -102,19 +102,27 @@ export default function App() {
     }, 2800);
   }, []);
 
-  // Deep linking: Read URL query parameters on initial mount & data load
+  // Deep linking: Read URL query parameters & path parameters on initial mount & data load
   const [hasProcessedInitialUrl, setHasProcessedInitialUrl] = useState(false);
 
   useEffect(() => {
-    if (validProducts.length === 0 || hasProcessedInitialUrl) return;
+    if (products.length === 0 || hasProcessedInitialUrl) return;
 
     const params = new URLSearchParams(window.location.search);
-    const productId = params.get('product');
+    let productId = params.get('product');
+
+    const path = window.location.pathname;
+    const pathMatch = path.match(/^\/(?:producto|p)\/([^/]+)/i);
+    if (pathMatch && pathMatch[1]) {
+      productId = decodeURIComponent(pathMatch[1]);
+    }
+
     const searchQuery = params.get('q') || params.get('search');
     const brandQuery = params.get('brand');
 
     if (productId) {
-      const found = validProducts.find((p) => p.id === productId || p.id.toLowerCase() === productId.toLowerCase());
+      const targetId = String(productId).toLowerCase();
+      const found = products.find((p) => String(p.id).toLowerCase() === targetId);
       if (found) {
         setSelectedProduct(found);
       }
@@ -129,18 +137,22 @@ export default function App() {
     }
 
     setHasProcessedInitialUrl(true);
-  }, [validProducts, hasProcessedInitialUrl]);
+  }, [products, hasProcessedInitialUrl]);
 
   // Synchronize URL with active product modal or active search/brand query
   useEffect(() => {
     if (!hasProcessedInitialUrl) return;
 
-    const url = new URL(window.location.href);
-
     if (selectedProduct) {
-      url.searchParams.set('product', selectedProduct.id);
+      const cleanPath = `/producto/${encodeURIComponent(selectedProduct.id)}`;
+      if (window.location.pathname !== cleanPath) {
+        window.history.replaceState({}, '', cleanPath);
+      }
     } else {
+      const url = new URL(window.location.href);
+      url.pathname = '/';
       url.searchParams.delete('product');
+
       if (filters.search) {
         url.searchParams.set('q', filters.search);
       } else {
@@ -152,9 +164,10 @@ export default function App() {
       } else {
         url.searchParams.delete('brand');
       }
-    }
 
-    window.history.replaceState({}, '', url.toString());
+      const newUrl = url.pathname + (url.search ? url.search : '');
+      window.history.replaceState({}, '', newUrl);
+    }
   }, [selectedProduct, filters.search, filters.brand, hasProcessedInitialUrl]);
 
   // Fetch Live Data from Backend / Google Sheet API with Direct Client Fallback

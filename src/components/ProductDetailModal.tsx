@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import { X, ShoppingBag, MessageCircle, Truck, ShieldCheck, CreditCard, Share2 } from 'lucide-react';
-import { shareProductLink, getWhatsAppProductShareUrl, updateOpenGraphMeta } from '../utils/shareUtils';
+import { shareProductLink, getWhatsAppProductShareUrl, updateOpenGraphMeta, getProductPageUrl } from '../utils/shareUtils';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -33,6 +33,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const installmentPrice = Math.round(product.precioVenta / 3);
 
   const handleSendWhatsappDirect = () => {
+    const productUrl = getProductPageUrl(product.id);
     const text = encodeURIComponent(
       `¡Hola Mr. Perkins! Me interesa encargar el siguiente producto:\n\n` +
       `*Producto:* ${product.producto}\n` +
@@ -40,7 +41,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       `*Cantidad/Envase:* ${product.cantidad}\n` +
       `*Unidades:* ${quantity}\n` +
       `*Precio Total:* $${(product.precioVenta * quantity).toLocaleString('es-AR')} ARS\n\n` +
-      `🔗 Ver enlace: ${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}\n\n` +
+      `🔗 Ver producto: ${productUrl}\n\n` +
       `¿Tienen stock disponible y formas de envío a mi domicilio? ¡Gracias!`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');

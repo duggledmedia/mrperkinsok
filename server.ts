@@ -275,11 +275,41 @@ async function startServer() {
     });
   }
 
-  // Intercept requests with ?product=ID to inject dynamic Open Graph meta tags (og:image, og:title, etc.)
-  app.get('/', async (req, res, next) => {
-    const productId = req.query.product as string;
-    if (!productId) return next();
+  // Proxy endpoint for product images so WhatsApp/Facebook scrapers get direct 200 OK image streams
+  app.get('/api/product-image/:id', async (req, res) => {
+    const productId = req.params.id;
+    let product = cachedProducts.find(
+      (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
+    );
+    if (!product) {
+      const refreshed = await fetchAndCacheProducts();
+      product = refreshed.find(
+        (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
+      );
+    }
 
+    const rawImg = product?.imgUrl ? formatImageUrl(product.imgUrl) : 'https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png';
+    try {
+      const imgRes = await fetch(rawImg, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      if (imgRes.ok && imgRes.body) {
+        const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const arrayBuffer = await imgRes.arrayBuffer();
+        return res.send(Buffer.from(arrayBuffer));
+      }
+    } catch (err) {
+      console.warn('Error fetching image for proxy:', err);
+    }
+    return res.redirect(rawImg);
+  });
+
+  // Handler for product pages (/producto/:id, /p/:id, /?product=ID)
+  const serveProductHtml = async (productId: string, req: express.Request, res: express.Response, next: express.NextFunction) => {
     let product = cachedProducts.find(
       (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
     );
@@ -305,10 +335,12 @@ async function startServer() {
 
       const pTitle = `${product.producto} (${product.marca}) - MR. PERKINS`;
       const pDesc = `🔥 ¡Mirá ${product.producto} en MR. PERKINS! Marca: ${product.marca} | ${product.cantidad} | Precio: $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
-      const pImg = formatImageUrl(product.imgUrl);
+      
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.get('host');
-      const fullUrl = `${protocol}://${host}/?product=${encodeURIComponent(product.id)}`;
+      const directImgUrl = formatImageUrl(product.imgUrl);
+      const proxiedImgUrl = `${protocol}://${host}/api/product-image/${encodeURIComponent(product.id)}`;
+      const fullUrl = `${protocol}://${host}/producto/${encodeURIComponent(product.id)}`;
 
       // Construct complete set of social Open Graph meta tags for WhatsApp/Facebook/Twitter previews
       const ogMetaTags = `
@@ -318,9 +350,9 @@ async function startServer() {
     <meta property="og:site_name" content="MR. PERKINS" />
     <meta property="og:title" content="${escapeHtml(pTitle)}" />
     <meta property="og:description" content="${escapeHtml(pDesc)}" />
-    <meta property="og:image" content="${escapeHtml(pImg)}" />
-    <meta property="og:image:secure_url" content="${escapeHtml(pImg)}" />
-    <meta property="og:image:url" content="${escapeHtml(pImg)}" />
+    <meta property="og:image" content="${escapeHtml(proxiedImgUrl)}" />
+    <meta property="og:image:secure_url" content="${escapeHtml(proxiedImgUrl)}" />
+    <meta property="og:image:url" content="${escapeHtml(proxiedImgUrl)}" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="800" />
     <meta property="og:image:height" content="800" />
@@ -329,9 +361,9 @@ async function startServer() {
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(pTitle)}" />
     <meta name="twitter:description" content="${escapeHtml(pDesc)}" />
-    <meta name="twitter:image" content="${escapeHtml(pImg)}" />
-    <meta name="twitter:image:src" content="${escapeHtml(pImg)}" />
-    <link rel="image_src" href="${escapeHtml(pImg)}" />
+    <meta name="twitter:image" content="${escapeHtml(proxiedImgUrl)}" />
+    <meta name="twitter:image:src" content="${escapeHtml(proxiedImgUrl)}" />
+    <link rel="image_src" href="${escapeHtml(proxiedImgUrl)}" />
       `;
 
       let html = rawHtml
@@ -352,6 +384,18 @@ async function startServer() {
       console.error('Error serving product OpenGraph meta HTML:', err);
       return next();
     }
+  };
+
+  app.get('/producto/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
+  app.get('/p/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
+
+  // Intercept requests with ?product=ID to inject dynamic Open Graph meta tags
+  app.get('/', async (req, res, next) => {
+    const productId = req.query.product as string;
+    if (productId) {
+      return serveProductHtml(productId, req, res, next);
+    }
+    return next();
   });
 
   // Vite middleware for development vs production
