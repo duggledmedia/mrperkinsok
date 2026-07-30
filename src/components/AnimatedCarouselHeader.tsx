@@ -68,41 +68,40 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
       <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
 
       {/* Main Banner Hero Container */}
-      <div className="max-w-7xl mx-auto px-3 py-4 md:py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-          
-          {/* Left Column: Brand Header Statement */}
-          <div className="lg:col-span-5 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="bg-white border-2 border-black p-1 shadow-[3px_3px_0px_0px_#fff] flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center">
-                <img
-                  src="https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png"
-                  alt="Mr. Perkins Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <div>
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight leading-none text-white drop-shadow-[2px_2px_0px_#000]">
-                  MR. PERKINS
-                </h2>
-                <span className="text-yellow-300 bg-black px-1.5 py-0.5 border border-yellow-300 inline-block mt-0.5 text-xs sm:text-sm font-mono font-bold uppercase">
-                  Todas las fragancias
-                </span>
-              </div>
+      <div className="max-w-5xl mx-auto px-3 py-4 md:py-6 flex flex-col items-center text-center gap-5">
+        
+        {/* Top Header Statement */}
+        <div className="flex flex-col items-center gap-2 max-w-2xl">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+            <div className="bg-white border-2 border-black p-1 shadow-[3px_3px_0px_0px_#fff] flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center">
+              <img
+                src="https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png"
+                alt="Mr. Perkins Logo"
+                className="w-full h-full object-contain"
+              />
             </div>
-
-            <p className="text-slate-300 font-sans text-xs sm:text-sm max-w-md">
-              Fragancias importadas, Colonias, Desodorantes, Cuidado Capilar y de la Piel
-            </p>
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight leading-none text-white drop-shadow-[2px_2px_0px_#000]">
+                MR. PERKINS
+              </h2>
+              <span className="text-yellow-300 bg-black px-2 py-0.5 border border-yellow-300 inline-block mt-1 text-xs sm:text-sm font-mono font-bold uppercase">
+                Todas las fragancias al mejor precio del mercado
+              </span>
+            </div>
           </div>
 
-          {/* Right Column: Dynamic Rotating Spotlight Product WITH ANIMATED COMIC STICKERS */}
-          <div className="lg:col-span-7 relative">
-            <div
-              onMouseEnter={() => setIsPaused(true)}
-              onMouseLeave={() => setIsPaused(false)}
-              className="bg-white text-black border-4 border-black p-3 sm:p-5 shadow-[6px_6px_0px_0px_#FF007F] relative transition-all"
-            >
+          <p className="text-slate-300 font-sans text-xs sm:text-sm mt-0.5">
+            Fragancias importadas, Colonias, Desodorantes, Cuidado Capilar y de la Piel
+          </p>
+        </div>
+
+        {/* Dynamic Rotating Spotlight Product Carousel Box */}
+        <div className="w-full max-w-3xl relative text-left">
+          <div
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            className="bg-white text-black border-4 border-black p-3 sm:p-5 shadow-[6px_6px_0px_0px_#FF007F] relative transition-all"
+          >
               {/* Badge Header */}
               <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
                 <div className="flex items-center gap-2">
@@ -213,9 +212,7 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
               )}
             </div>
           </div>
-
         </div>
       </div>
-    </div>
   );
 };

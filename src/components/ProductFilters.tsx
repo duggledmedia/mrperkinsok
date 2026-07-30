@@ -19,7 +19,11 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   const availableTypes = Array.from(new Set(products.map((p) => p.tipo).filter(Boolean))) as string[];
   const availableGenders = Array.from(new Set(products.map((p) => p.genero).filter(Boolean))) as string[];
 
-  const hasActiveFilters = Boolean(filters.type) || Boolean(filters.gender) || Boolean(filters.search);
+  const hasActiveFilters =
+    Boolean(filters.type) ||
+    Boolean(filters.gender) ||
+    Boolean(filters.search) ||
+    (filters.sortBy === 'price-asc' || filters.sortBy === 'price-desc');
 
   return (
     <div className="bg-white border-3 border-black p-2 sm:p-2.5 mb-5 shadow-[3px_3px_0px_0px_#000] space-y-2">
@@ -30,18 +34,18 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           <div className="bg-pink-400 p-0.5 sm:p-1 border border-black shadow-xs">
             <Filter className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" />
           </div>
-          <span className="font-black uppercase text-[10px] sm:text-xs font-sans tracking-tight whitespace-nowrap">
+          <span className="font-black uppercase text-[9px] sm:text-xs font-sans tracking-tight whitespace-nowrap">
             FILTRAR POR:
           </span>
         </div>
 
         {/* Dropdowns inline in single row */}
-        <div className="flex flex-1 items-center gap-1 sm:gap-1.5 max-w-md">
+        <div className="grid grid-cols-3 gap-1 sm:gap-1.5 flex-1 min-w-0 max-w-lg">
           {/* Tipo Filter */}
           <select
             value={filters.type}
             onChange={(e) => onFilterChange({ type: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-1.5 sm:px-2 py-1 font-bold text-[11px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
           >
             <option value="">TIPO</option>
             {availableTypes.map((t) => (
@@ -55,7 +59,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           <select
             value={filters.gender}
             onChange={(e) => onFilterChange({ gender: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-1.5 sm:px-2 py-1 font-bold text-[11px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
           >
             <option value="">GÉNERO</option>
             {availableGenders.map((g) => (
@@ -64,12 +68,27 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
               </option>
             ))}
           </select>
+
+          {/* Precio Sort Filter */}
+          <select
+            value={filters.sortBy === 'price-asc' || filters.sortBy === 'price-desc' ? filters.sortBy : ''}
+            onChange={(e) =>
+              onFilterChange({
+                sortBy: (e.target.value as 'price-asc' | 'price-desc') || 'featured'
+              })
+            }
+            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+          >
+            <option value="">PRECIO</option>
+            <option value="price-asc">MENOR A MAYOR</option>
+            <option value="price-desc">MAYOR A MENOR</option>
+          </select>
         </div>
 
         {/* Clear Filters Button */}
         {hasActiveFilters && (
           <button
-            onClick={() => onFilterChange({ type: '', gender: '', search: '' })}
+            onClick={() => onFilterChange({ type: '', gender: '', search: '', sortBy: 'featured' })}
             className="bg-black text-white hover:bg-pink-600 border border-black px-2 py-1 font-mono text-[9px] sm:text-xs font-bold flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer transition-colors flex-shrink-0"
             title="Limpiar Filtros"
           >
