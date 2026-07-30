@@ -1,15 +1,48 @@
 import { Product } from '../types';
 
 /**
- * Copies product URL or uses Web Share API if supported
+ * Helper to fetch product image as a File for Web Share API
+ */
+async function fetchImageFile(imageUrl: string, fileName: string): Promise<File | null> {
+  try {
+    const res = await fetch(imageUrl, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const type = blob.type || 'image/jpeg';
+    const ext = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpeg';
+    return new File([blob], `${fileName}.${ext}`, { type });
+  } catch (err) {
+    console.warn('Could not fetch image for file sharing:', err);
+    return null;
+  }
+}
+
+/**
+ * Copies product URL or uses Web Share API (attaching image file when supported)
  */
 export async function shareProductLink(product: Product): Promise<{ success: boolean; method: string }> {
   const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
   const title = `MR. PERKINS - ${product.producto}`;
-  const text = `🔥 ¡Mirá ${product.producto} (${product.marca}) por $${product.precioVenta.toLocaleString('es-AR')} en MR. PERKINS!`;
+  const text = `🔥 ¡Mirá ${product.producto} (${product.marca}) por $${product.precioVenta.toLocaleString('es-AR')} en MR. PERKINS!\n\n🔗 ${url}`;
 
   if (navigator.share) {
     try {
+      if (product.imgUrl && typeof navigator.canShare === 'function') {
+        const imageFile = await fetchImageFile(product.imgUrl, product.producto.replace(/[^a-zA-Z0-9]/g, '_'));
+        if (imageFile) {
+          const shareData = {
+            title,
+            text,
+            url,
+            files: [imageFile]
+          };
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+            return { success: true, method: 'native-file' };
+          }
+        }
+      }
+
       await navigator.share({
         title,
         text,
@@ -114,6 +147,7 @@ export function updateOpenGraphMeta(product: Product | null) {
     setMeta('property', 'og:title', title);
     setMeta('property', 'og:description', desc);
     setMeta('property', 'og:image', img);
+    setMeta('property', 'og:image:secure_url', img);
     setMeta('property', 'og:url', url);
 
     setMeta('name', 'twitter:title', title);
@@ -123,6 +157,7 @@ export function updateOpenGraphMeta(product: Product | null) {
     setMeta('property', 'og:title', defaultTitle);
     setMeta('property', 'og:description', defaultDesc);
     setMeta('property', 'og:image', defaultImage);
+    setMeta('property', 'og:image:secure_url', defaultImage);
     setMeta('property', 'og:url', window.location.href);
 
     setMeta('name', 'twitter:title', defaultTitle);

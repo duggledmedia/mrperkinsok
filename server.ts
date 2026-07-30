@@ -269,17 +269,32 @@ async function startServer() {
       const host = req.headers['x-forwarded-host'] || req.get('host');
       const fullUrl = `${protocol}://${host}/?product=${encodeURIComponent(product.id)}`;
 
-      let html = rawHtml
-        .replace(/<title>.*?<\/title>/gi, `<title>${escapeHtml(pTitle)}</title>`)
-        .replace(/<meta property="og:title" content=".*?" \/>/gi, `<meta property="og:title" content="${escapeHtml(pTitle)}" />`)
-        .replace(/<meta property="og:description" content=".*?" \/>/gi, `<meta property="og:description" content="${escapeHtml(pDesc)}" />`)
-        .replace(/<meta property="og:image" content=".*?" \/>/gi, `<meta property="og:image" content="${escapeHtml(pImg)}" />`)
-        .replace(/<meta name="twitter:title" content=".*?" \/>/gi, `<meta name="twitter:title" content="${escapeHtml(pTitle)}" />`)
-        .replace(/<meta name="twitter:description" content=".*?" \/>/gi, `<meta name="twitter:description" content="${escapeHtml(pDesc)}" />`)
-        .replace(/<meta name="twitter:image" content=".*?" \/>/gi, `<meta name="twitter:image" content="${escapeHtml(pImg)}" />`);
+      // Construct complete set of social Open Graph meta tags for WhatsApp/Facebook/Twitter previews
+      const ogMetaTags = `
+    <title>${escapeHtml(pTitle)}</title>
+    <meta property="og:type" content="product" />
+    <meta property="og:site_name" content="MR. PERKINS" />
+    <meta property="og:title" content="${escapeHtml(pTitle)}" />
+    <meta property="og:description" content="${escapeHtml(pDesc)}" />
+    <meta property="og:image" content="${escapeHtml(pImg)}" />
+    <meta property="og:image:secure_url" content="${escapeHtml(pImg)}" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="600" />
+    <meta property="og:image:height" content="600" />
+    <meta property="og:url" content="${escapeHtml(fullUrl)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(pTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(pDesc)}" />
+    <meta name="twitter:image" content="${escapeHtml(pImg)}" />
+    <meta name="twitter:image:src" content="${escapeHtml(pImg)}" />
+      `;
 
-      const extraTags = `\n    <meta property="og:url" content="${escapeHtml(fullUrl)}" />\n    <meta property="og:image:width" content="600" />\n    <meta property="og:image:height" content="600" />\n`;
-      html = html.replace('</head>', `${extraTags}</head>`);
+      let html = rawHtml
+        .replace(/<title>.*?<\/title>/gi, '')
+        .replace(/<meta\s+property="og:[^"]*"\s+content="[^"]*"\s*\/?>/gi, '')
+        .replace(/<meta\s+name="twitter:[^"]*"\s+content="[^"]*"\s*\/?>/gi, '');
+
+      html = html.replace('</head>', `${ogMetaTags}\n  </head>`);
 
       if (process.env.NODE_ENV !== 'production' && viteDevServer) {
         html = await viteDevServer.transformIndexHtml(req.originalUrl, html);
