@@ -1,12 +1,24 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
+import fs from 'fs';
+import { createServer as createViteServer, ViteDevServer } from 'vite';
 import Papa from 'papaparse';
 import { INITIAL_PRODUCTS, INITIAL_BRANDS, INITIAL_PAYMENT_METHODS } from './src/data/mockData';
 import { Product, Brand, PaymentMethod } from './src/types';
 
 const SHEET_ID = '1Uhi-a3TPPsy1RFpzsCikX7hdRiEux5-piobX0vnwGhM';
 const CATALOGO_GID = '809374575';
+
+let cachedProducts: Product[] = INITIAL_PRODUCTS;
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function parseArgentinePrice(val: any): number {
   if (typeof val === 'number') return val;
@@ -191,6 +203,10 @@ async function startServer() {
         return { medio_de_pago, desc_mp, activo };
       }).filter(pm => Boolean(pm.medio_de_pago));
 
+      if (products.length > 0) {
+        cachedProducts = products;
+      }
+
       res.json({
         products: products.length > 0 ? products : INITIAL_PRODUCTS,
         brands: brands.length > 0 ? brands : INITIAL_BRANDS,
@@ -218,13 +234,68 @@ async function startServer() {
     res.json({ status: 'ok', brand: 'Mr. Perkins' });
   });
 
-  // Vite middleware for development vs production
+  let viteDevServer: ViteDevServer | null = null;
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
+    viteDevServer = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
-    app.use(vite.middlewares);
+  }
+
+  // Intercept requests with ?product=ID to inject dynamic Open Graph meta tags (og:image, og:title, etc.)
+  app.get('/', async (req, res, next) => {
+    const productId = req.query.product as string;
+    if (!productId) return next();
+
+    const product = cachedProducts.find(
+      (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
+    );
+    if (!product) return next();
+
+    try {
+      let rawHtml = '';
+      if (process.env.NODE_ENV !== 'production') {
+        const indexPath = path.join(process.cwd(), 'index.html');
+        rawHtml = fs.readFileSync(indexPath, 'utf-8');
+      } else {
+        const distIndexPath = path.join(process.cwd(), 'dist', 'index.html');
+        rawHtml = fs.readFileSync(distIndexPath, 'utf-8');
+      }
+
+      const pTitle = `${product.producto} - MR. PERKINS`;
+      const pDesc = `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
+      const pImg = product.imgUrl;
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const fullUrl = `${protocol}://${host}/?product=${encodeURIComponent(product.id)}`;
+
+      let html = rawHtml
+        .replace(/<title>.*?<\/title>/gi, `<title>${escapeHtml(pTitle)}</title>`)
+        .replace(/<meta property="og:title" content=".*?" \/>/gi, `<meta property="og:title" content="${escapeHtml(pTitle)}" />`)
+        .replace(/<meta property="og:description" content=".*?" \/>/gi, `<meta property="og:description" content="${escapeHtml(pDesc)}" />`)
+        .replace(/<meta property="og:image" content=".*?" \/>/gi, `<meta property="og:image" content="${escapeHtml(pImg)}" />`)
+        .replace(/<meta name="twitter:title" content=".*?" \/>/gi, `<meta name="twitter:title" content="${escapeHtml(pTitle)}" />`)
+        .replace(/<meta name="twitter:description" content=".*?" \/>/gi, `<meta name="twitter:description" content="${escapeHtml(pDesc)}" />`)
+        .replace(/<meta name="twitter:image" content=".*?" \/>/gi, `<meta name="twitter:image" content="${escapeHtml(pImg)}" />`);
+
+      const extraTags = `\n    <meta property="og:url" content="${escapeHtml(fullUrl)}" />\n    <meta property="og:image:width" content="600" />\n    <meta property="og:image:height" content="600" />\n`;
+      html = html.replace('</head>', `${extraTags}</head>`);
+
+      if (process.env.NODE_ENV !== 'production' && viteDevServer) {
+        html = await viteDevServer.transformIndexHtml(req.originalUrl, html);
+      }
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    } catch (err) {
+      console.error('Error serving product OpenGraph meta HTML:', err);
+      return next();
+    }
+  });
+
+  // Vite middleware for development vs production
+  if (process.env.NODE_ENV !== 'production' && viteDevServer) {
+    app.use(viteDevServer.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));

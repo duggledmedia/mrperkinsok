@@ -40,7 +40,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       `*Cantidad/Envase:* ${product.cantidad}\n` +
       `*Unidades:* ${quantity}\n` +
       `*Precio Total:* $${(product.precioVenta * quantity).toLocaleString('es-AR')} ARS\n\n` +
-      `🖼️ Foto: ${product.imgUrl}\n` +
       `🔗 Ver enlace: ${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}\n\n` +
       `¿Tienen stock disponible y formas de envío a mi domicilio? ¡Gracias!`
     );

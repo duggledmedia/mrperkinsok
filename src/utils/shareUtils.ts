@@ -1,13 +1,12 @@
 import { Product } from '../types';
 
 /**
- * Copies text or uses Web Share API if supported
+ * Copies product URL or uses Web Share API if supported
  */
 export async function shareProductLink(product: Product): Promise<{ success: boolean; method: string }> {
   const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
   const title = `MR. PERKINS - ${product.producto}`;
-  const text = `🔥 ¡Mirá ${product.producto} en MR. PERKINS! ${product.marca} (${product.cantidad}) por $${product.precioVenta.toLocaleString('es-AR')}.\n` +
-    `Imagen: ${product.imgUrl}\n`;
+  const text = `🔥 ¡Mirá ${product.producto} (${product.marca}) por $${product.precioVenta.toLocaleString('es-AR')} en MR. PERKINS!`;
 
   if (navigator.share) {
     try {
@@ -29,7 +28,6 @@ export async function shareProductLink(product: Product): Promise<{ success: boo
     await navigator.clipboard.writeText(url);
     return { success: true, method: 'clipboard' };
   } catch {
-    // Legacy fallback
     const input = document.createElement('input');
     input.value = url;
     document.body.appendChild(input);
@@ -41,7 +39,7 @@ export async function shareProductLink(product: Product): Promise<{ success: boo
 }
 
 /**
- * Formats WhatsApp direct share URL for a product
+ * Formats WhatsApp direct share URL for a product without embedding raw image URL link in text
  */
 export function getWhatsAppProductShareUrl(product: Product): string {
   const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
@@ -51,7 +49,6 @@ export function getWhatsAppProductShareUrl(product: Product): string {
     `*Marca:* ${product.marca}\n` +
     `*Cantidad:* ${product.cantidad}\n` +
     `*Precio:* $${product.precioVenta.toLocaleString('es-AR')} ARS\n\n` +
-    `🖼️ *Foto:* ${product.imgUrl}\n` +
     `🔗 *Ver en la web:* ${url}`
   );
   return `https://api.whatsapp.com/send?text=${text}`;
@@ -92,31 +89,44 @@ export async function shareSearchLink(query: string, brand?: string): Promise<{ 
 export function updateOpenGraphMeta(product: Product | null) {
   if (typeof document === 'undefined') return;
 
-  const defaultTitle = 'MR. PERKINS | Perfumes Importados y Fragancias en Oferta';
-  const defaultDesc = 'Tienda de perfumes importados, colonias y cosmética. Precios increíbles, 3 cuotas sin interés y envíos a todo el país.';
+  const defaultTitle = 'Mr. Perkins | Perfumes & Desodorantes';
+  const defaultDesc = 'Las Mejores Fragancias.. Al mejor Precio. Perfumería importada y desodorantes de máxima concentración con envíos a todo el país.';
   const defaultImage = 'https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png';
 
   document.title = product ? `${product.producto} - MR. PERKINS` : defaultTitle;
 
-  const setMeta = (property: string, content: string) => {
-    let tag = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement;
+  const setMeta = (attrName: 'property' | 'name', attrVal: string, content: string) => {
+    let tag = document.querySelector(`meta[${attrName}="${attrVal}"]`) as HTMLMetaElement;
     if (!tag) {
       tag = document.createElement('meta');
-      tag.setAttribute('property', property);
+      tag.setAttribute(attrName, attrVal);
       document.head.appendChild(tag);
     }
     tag.content = content;
   };
 
   if (product) {
-    setMeta('og:title', `${product.producto} - MR. PERKINS`);
-    setMeta('og:description', `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`);
-    setMeta('og:image', product.imgUrl);
-    setMeta('og:url', `${window.location.origin}${window.location.pathname}?product=${product.id}`);
+    const title = `${product.producto} - MR. PERKINS`;
+    const desc = `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
+    const img = product.imgUrl;
+    const url = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}`;
+
+    setMeta('property', 'og:title', title);
+    setMeta('property', 'og:description', desc);
+    setMeta('property', 'og:image', img);
+    setMeta('property', 'og:url', url);
+
+    setMeta('name', 'twitter:title', title);
+    setMeta('name', 'twitter:description', desc);
+    setMeta('name', 'twitter:image', img);
   } else {
-    setMeta('og:title', defaultTitle);
-    setMeta('og:description', defaultDesc);
-    setMeta('og:image', defaultImage);
-    setMeta('og:url', window.location.href);
+    setMeta('property', 'og:title', defaultTitle);
+    setMeta('property', 'og:description', defaultDesc);
+    setMeta('property', 'og:image', defaultImage);
+    setMeta('property', 'og:url', window.location.href);
+
+    setMeta('name', 'twitter:title', defaultTitle);
+    setMeta('name', 'twitter:description', defaultDesc);
+    setMeta('name', 'twitter:image', defaultImage);
   }
 }
