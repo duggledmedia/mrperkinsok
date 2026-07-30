@@ -277,8 +277,6 @@ export default function App() {
       <Navbar
         cartCount={cartTotalCount}
         onOpenCart={() => setIsCartOpen(true)}
-        searchQuery={filters.search}
-        onSearchChange={(q) => setFilters((prev) => ({ ...prev, search: q }))}
       />
 
       {/* Hero Animated Carousel Header */}
@@ -348,10 +346,6 @@ export default function App() {
                 : 'TODOS LOS PRODUCTOS'}
             </span>
           </div>
-
-          <span className="text-xs font-mono font-bold text-slate-600">
-            Mostrando {filteredProducts.length} de {validProducts.length} productos
-          </span>
         </div>
 
         {/* Catalog Grid */}

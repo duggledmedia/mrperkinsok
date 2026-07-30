@@ -22,26 +22,26 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   const hasActiveFilters = Boolean(filters.type) || Boolean(filters.gender) || Boolean(filters.search);
 
   return (
-    <div className="bg-white border-3 border-black p-2.5 sm:p-3 mb-6 shadow-[4px_4px_0px_0px_#000] space-y-2.5">
+    <div className="bg-white border-3 border-black p-2 sm:p-2.5 mb-5 shadow-[3px_3px_0px_0px_#000] space-y-2">
       {/* Top Row: Type & Gender Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-2">
         {/* Left Indicator */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="bg-pink-400 p-1 border border-black shadow-xs">
-            <Filter className="w-3.5 h-3.5 text-black" />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="bg-pink-400 p-0.5 sm:p-1 border border-black shadow-xs">
+            <Filter className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" />
           </div>
-          <span className="font-black uppercase text-xs font-sans tracking-wide">
+          <span className="font-black uppercase text-[11px] sm:text-xs font-sans tracking-tight">
             FILTRAR POR:
           </span>
         </div>
 
-        {/* Filters Inline Form Row: ONLY Tipos & Genero */}
-        <div className="grid grid-cols-2 gap-2 flex-1 max-w-lg">
+        {/* Dropdowns */}
+        <div className="grid grid-cols-2 gap-1.5 flex-1 max-w-md">
           {/* Tipo Filter */}
           <select
             value={filters.type}
             onChange={(e) => onFilterChange({ type: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-2.5 py-1.5 font-bold text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer"
+            className="w-full bg-slate-50 border-2 border-black px-2 py-1 font-bold text-[16px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer"
           >
             <option value="">TODOS LOS TIPOS</option>
             {availableTypes.map((t) => (
@@ -55,7 +55,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           <select
             value={filters.gender}
             onChange={(e) => onFilterChange({ gender: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-2.5 py-1.5 font-bold text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer"
+            className="w-full bg-slate-50 border-2 border-black px-2 py-1 font-bold text-[16px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer"
           >
             <option value="">TODOS LOS GÉNEROS</option>
             {availableGenders.map((g) => (
@@ -70,29 +70,32 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
         {hasActiveFilters && (
           <button
             onClick={() => onFilterChange({ type: '', gender: '', search: '' })}
-            className="bg-black text-white hover:bg-pink-600 border border-black px-3 py-1.5 font-mono text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors flex-shrink-0"
+            className="bg-black text-white hover:bg-pink-600 border border-black px-2.5 py-1 font-mono text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors flex-shrink-0"
           >
             <RotateCcw className="w-3 h-3" />
-            <span>LIMPIAR FILTROS</span>
+            <span>LIMPIAR</span>
           </button>
         )}
       </div>
 
-      {/* Bottom Row: Search Bar Below Filters */}
-      <div className="pt-2 border-t-2 border-black">
+      {/* Bottom Row: Search Bar directly below filters */}
+      <div className="pt-1.5 border-t border-black/20">
         <div className="relative flex items-center">
-          <Search className="w-4 h-4 absolute left-3 text-black pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-2.5 text-black pointer-events-none" />
           <input
-            type="text"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoComplete="off"
             value={filters.search}
             onChange={(e) => onFilterChange({ search: e.target.value })}
             placeholder="Buscar por nombre de perfume, marca, desodorante..."
-            className="w-full bg-slate-50 border-2 border-black pl-9 pr-8 py-2 font-bold text-xs text-black placeholder:text-black/50 focus:outline-none focus:bg-yellow-100 focus:shadow-[3px_3px_0px_0px_#000] transition-all"
+            className="w-full bg-slate-50 border-2 border-black pl-8 pr-7 py-1.5 font-bold text-[16px] sm:text-xs text-black placeholder:text-black/50 focus:outline-none focus:bg-yellow-100 focus:shadow-[2px_2px_0px_0px_#000] transition-all"
           />
           {filters.search && (
             <button
               onClick={() => onFilterChange({ search: '' })}
-              className="absolute right-2 text-xs bg-black text-white px-1.5 py-0.5 font-mono font-bold hover:bg-pink-500 cursor-pointer"
+              className="absolute right-2 text-xs bg-black text-white px-1.5 py-0.2 font-mono font-bold hover:bg-pink-500 cursor-pointer"
             >
               ✕
             </button>

@@ -73,11 +73,6 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
           
           {/* Left Column: Brand Header Statement */}
           <div className="lg:col-span-5 space-y-3">
-            <div className="inline-flex items-center gap-1.5 bg-pink-500 text-black border-2 border-black px-2.5 py-0.5 text-xs font-black uppercase shadow-[2px_2px_0px_0px_#fff]">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>DESCUENTOS & DIRECTO DE STOCK</span>
-            </div>
-            
             <div className="flex items-center gap-3">
               <div className="bg-white border-2 border-black p-1 shadow-[3px_3px_0px_0px_#fff] flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center">
                 <img
@@ -90,14 +85,14 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
                 <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight leading-none text-white drop-shadow-[2px_2px_0px_#000]">
                   MR. PERKINS
                 </h2>
-                <span className="text-yellow-300 bg-black px-1.5 py-0.5 border border-yellow-300 inline-block mt-0.5 text-xs sm:text-sm font-mono font-bold">
-                  PERFUMERÍA IMPORTADA
+                <span className="text-yellow-300 bg-black px-1.5 py-0.5 border border-yellow-300 inline-block mt-0.5 text-xs sm:text-sm font-mono font-bold uppercase">
+                  Todas las fragancias
                 </span>
               </div>
             </div>
 
             <p className="text-slate-300 font-sans text-xs sm:text-sm max-w-md">
-              Fragancias importadas y desodorantes de máxima concentración con stock en tiempo real.
+              Fragancias importadas, Colonias, Desodorantes, Cuidado Capilar y de la Piel
             </p>
           </div>
 
@@ -111,28 +106,9 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
               {/* Badge Header */}
               <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="bg-yellow-300 text-black border border-black font-mono font-bold text-[11px] px-2 py-0.5">
+                  <span className="bg-yellow-300 text-black border border-black font-mono font-bold text-[11px] px-2 py-0.5 uppercase">
                     PRODUCTO DESTACADO
                   </span>
-                  <span className="text-[10px] font-mono font-extrabold uppercase bg-slate-100 px-1.5 py-0.5 border border-black">
-                    {currentIndex + 1} / {products.length}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setCurrentIndex((prev) => (prev - 1 + products.length) % products.length)}
-                    className="bg-black text-white hover:bg-yellow-300 hover:text-black p-1 border border-black transition-colors cursor-pointer"
-                    title="Anterior"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentIndex((prev) => (prev + 1) % products.length)}
-                    className="bg-black text-white hover:bg-yellow-300 hover:text-black p-1 border border-black transition-colors cursor-pointer"
-                    title="Siguiente"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               </div>
 

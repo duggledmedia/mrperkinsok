@@ -22,23 +22,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       onClick={() => onSelectProduct(product)}
       className="bg-white border-4 border-black shadow-[6px_6px_0px_0px_#000] hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[10px_10px_0px_0px_#000] transition-all duration-200 flex flex-col justify-between relative group cursor-pointer overflow-hidden"
     >
-      {/* Top Banner Tag */}
-      <div className="flex items-center justify-between border-b-3 border-black p-2 bg-slate-50">
-        <span className="bg-black text-yellow-300 font-mono font-black text-xs px-2 py-0.5 uppercase border border-black truncate max-w-[150px]">
-          {product.marca}
-        </span>
-        <div className="flex items-center gap-1 font-mono text-[10px] font-bold">
-          <span className="bg-cyan-200 px-1.5 py-0.5 border border-black uppercase">
-            {product.tipo}
-          </span>
-          <span className="bg-purple-200 px-1.5 py-0.5 border border-black uppercase">
-            {product.genero}
-          </span>
-        </div>
-      </div>
-
       {/* Product Image Stage */}
-      <div className="relative aspect-square bg-slate-100 border-b-3 border-black overflow-hidden flex items-center justify-center p-4">
+      <div className="relative aspect-square bg-slate-100 border-b-3 border-black overflow-hidden flex items-center justify-center p-3 sm:p-4">
         <img
           src={product.imgUrl}
           alt={product.producto}
@@ -52,18 +37,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           }}
         />
 
-        {/* Volume badge */}
-        <div className="absolute top-2 left-2 bg-white text-black text-xs font-mono font-black px-2 py-0.5 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
+        {/* Volume badge - Smaller on mobile */}
+        <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-white text-black text-[9px] sm:text-xs font-mono font-black px-1.5 py-0.5 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[2px_2px_0px_0px_#000]">
           {product.cantidad}
         </div>
 
-        {/* Stock Badge - REQUIRED BY PROMPT */}
+        {/* Stock Badge - Smaller on mobile */}
         {isOut ? (
-          <div className="absolute top-2 right-2 bg-pink-600 text-white font-black text-xs px-2.5 py-1 border-2 border-black shadow-[3px_3px_0px_0px_#000] rotate-2 z-10">
+          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-pink-600 text-white font-black text-[9px] sm:text-xs px-1.5 py-0.5 sm:px-2.5 sm:py-1 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[3px_3px_0px_0px_#000] rotate-2 z-10">
             AGOTADO
           </div>
         ) : (
-          <div className="absolute top-2 right-2 bg-lime-400 text-black font-black text-[11px] px-2 py-0.5 border-2 border-black shadow-[2px_2px_0px_0px_#000] z-10">
+          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-lime-400 text-black font-black text-[9px] sm:text-[11px] px-1.5 py-0.5 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[2px_2px_0px_0px_#000] z-10">
             EN STOCK
           </div>
         )}
@@ -76,30 +61,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
       </div>
 
-      {/* Product Information Body */}
-      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-        <div>
-          <h3 className="font-extrabold text-base md:text-lg uppercase leading-tight font-sans group-hover:text-pink-600 transition-colors line-clamp-2">
+      {/* Product Information Body - Only display full product name cleanly */}
+      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2">
+        <div className="flex-1 flex items-center">
+          {/* Product Full Name (Full visibility, no truncation) */}
+          <h3 className="font-black text-xs sm:text-sm md:text-base uppercase leading-tight font-sans text-black group-hover:text-pink-600 transition-colors break-words w-full">
             {product.producto}
           </h3>
-
-          <p className="text-xs text-slate-600 mt-1 line-clamp-2 font-sans">
-            {product.descripcion || 'Sin descripción disponible.'}
-          </p>
-
-          {/* Tag Chips */}
-          {product.clasificacion && product.clasificacion.length > 0 && (
-            <div className="flex items-center gap-1 flex-wrap mt-2">
-              {product.clasificacion.slice(0, 3).map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="bg-slate-100 text-black text-[10px] font-mono font-bold px-1.5 py-0.2 border border-black uppercase"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Price & Action Row */}

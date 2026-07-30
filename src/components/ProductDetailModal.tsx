@@ -36,14 +36,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border-4 border-black w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-[12px_12px_0px_0px_#000] relative p-6 space-y-6">
-        {/* Close Button */}
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div className="bg-white border-4 border-black w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-[12px_12px_0px_0px_#000] relative p-4 sm:p-6 space-y-6">
+        {/* Prominent Top-Right Close Cross Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 bg-black text-white hover:bg-pink-500 hover:text-black p-2 border-2 border-black font-black font-mono transition-colors cursor-pointer"
+          title="Cerrar ventana emergente"
+          aria-label="Cerrar ventana"
+          className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-50 bg-black text-white hover:bg-pink-500 hover:text-black p-2 sm:p-2.5 border-2 border-black font-black font-mono transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 flex items-center justify-center gap-1 group"
         >
-          <X className="w-6 h-6" />
+          <X className="w-6 h-6 stroke-[3]" />
+          <span className="text-[10px] sm:text-xs font-mono font-bold uppercase hidden sm:inline">Cerrar</span>
         </button>
 
         {/* Modal Content Layout */}
