@@ -8,11 +8,11 @@ export interface StickerData {
 }
 
 export const STICKER_POOL: StickerData[] = [
-  { text: "Envío gratis en Caba!", bg: "bg-yellow-300", rotate: "rotate-[-4deg]", animation: "animate-bounce [animation-duration:2.5s]" },
-  { text: "Hasta 3 Cuotas sin interés!", bg: "bg-pink-400", rotate: "rotate-[3deg]", animation: "animate-pulse" },
-  { text: "Oferta de tiempo limitado!", bg: "bg-cyan-300", rotate: "rotate-[-2deg]", animation: "animate-bounce [animation-duration:3s]" },
-  { text: "Oferta hasta agotar stock!!", bg: "bg-lime-300", rotate: "rotate-[4deg]", animation: "animate-pulse" },
-  { text: "Envíos a todo el País.", bg: "bg-orange-300", rotate: "rotate-[-3deg]", animation: "animate-bounce [animation-duration:2s]" },
+  { text: "Envío gratis en Caba!", bg: "bg-yellow-300", rotate: "rotate-[-4deg]", animation: "animate-bounce [animation-duration:5s]" },
+  { text: "Hasta 3 Cuotas sin interés!", bg: "bg-pink-400", rotate: "rotate-[3deg]", animation: "animate-pulse [animation-duration:4s]" },
+  { text: "Oferta de tiempo limitado!", bg: "bg-cyan-300", rotate: "rotate-[-2deg]", animation: "animate-bounce [animation-duration:6s]" },
+  { text: "Oferta hasta agotar stock!!", bg: "bg-lime-300", rotate: "rotate-[4deg]", animation: "animate-pulse [animation-duration:4.5s]" },
+  { text: "Envíos a todo el País.", bg: "bg-orange-300", rotate: "rotate-[-3deg]", animation: "animate-bounce [animation-duration:5.5s]" },
 ];
 
 export function getProductStickers(productId: string): StickerData[] {

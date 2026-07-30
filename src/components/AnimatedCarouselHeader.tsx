@@ -54,7 +54,7 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
     if (products.length === 0 || isPaused) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % products.length);
-    }, 3800);
+    }, 7000);
     return () => clearInterval(interval);
   }, [products.length, isPaused]);
 
@@ -68,11 +68,11 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
       <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
 
       {/* Main Banner Hero Container */}
-      <div className="max-w-5xl mx-auto px-3 py-4 md:py-6 flex flex-col items-center text-center gap-5">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 md:py-6 flex flex-col items-start gap-5">
         
-        {/* Top Header Statement */}
-        <div className="flex flex-col items-center gap-2 max-w-2xl">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+        {/* Top Header Statement (Left Aligned) */}
+        <div className="flex flex-col items-center sm:items-start text-center sm:text-left gap-2 max-w-3xl w-full">
+          <div className="flex flex-col sm:flex-row items-center justify-start gap-2 sm:gap-3">
             <div className="bg-white border-2 border-black p-1 shadow-[3px_3px_0px_0px_#fff] flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center">
               <img
                 src="https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png"
@@ -96,24 +96,99 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
         </div>
 
         {/* Dynamic Rotating Spotlight Product Carousel Box */}
-        <div className="w-full max-w-3xl relative text-left">
+        <div className="w-full relative text-left">
           <div
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
-            className="bg-white text-black border-4 border-black p-3 sm:p-5 shadow-[6px_6px_0px_0px_#FF007F] relative transition-all"
+            className="bg-white text-black border-4 border-black p-3 sm:p-5 shadow-[6px_6px_0px_0px_#FF007F] relative transition-all overflow-hidden"
           >
-              {/* Badge Header */}
-              <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="bg-yellow-300 text-black border border-black font-mono font-bold text-[11px] px-2 py-0.5 uppercase">
-                    PRODUCTO DESTACADO
+            {/* Giant animated repeating SALE background layer */}
+            <div className="absolute -inset-10 pointer-events-none z-0 overflow-hidden select-none opacity-25 flex flex-col justify-center -space-y-3 sm:-space-y-5 animate-sale-zoom">
+              {/* Row 1: Sliding Left */}
+              <div className="flex whitespace-nowrap animate-sale-slide-left gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r1-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-600 drop-shadow-[3px_3px_0px_#000] font-sans italic uppercase leading-none"
+                  >
+                    SALE★
                   </span>
-                </div>
+                ))}
               </div>
 
-              {/* Spotlight Product Details */}
-              {currentProduct && (
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+              {/* Row 2: Sliding Right */}
+              <div className="flex whitespace-nowrap animate-sale-slide-right gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r2-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-500 drop-shadow-[3px_3px_0px_#000] font-sans uppercase leading-none"
+                  >
+                    SALE!
+                  </span>
+                ))}
+              </div>
+
+              {/* Row 3: Sliding Left Fast */}
+              <div className="flex whitespace-nowrap animate-sale-slide-left-fast gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r3-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-600 drop-shadow-[3px_3px_0px_#000] font-sans italic uppercase leading-none"
+                  >
+                    ★SALE
+                  </span>
+                ))}
+              </div>
+
+              {/* Row 4: Sliding Right */}
+              <div className="flex whitespace-nowrap animate-sale-slide-right gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r4-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-500 drop-shadow-[3px_3px_0px_#000] font-sans uppercase leading-none"
+                  >
+                    SALE!
+                  </span>
+                ))}
+              </div>
+
+              {/* Row 5: Sliding Left */}
+              <div className="flex whitespace-nowrap animate-sale-slide-left gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r5-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-600 drop-shadow-[3px_3px_0px_#000] font-sans italic uppercase leading-none"
+                  >
+                    SALE★
+                  </span>
+                ))}
+              </div>
+
+              {/* Row 6: Sliding Right */}
+              <div className="flex whitespace-nowrap animate-sale-slide-right gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <span
+                    key={`r6-${i}`}
+                    className="font-black text-6xl sm:text-7xl md:text-8xl tracking-tighter text-red-500 drop-shadow-[3px_3px_0px_#000] font-sans uppercase leading-none"
+                  >
+                    SALE!
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Badge Header */}
+            <div className="relative z-10 flex items-center justify-between border-b-2 border-black pb-2 mb-3 bg-white/80 backdrop-blur-xs">
+              <div className="flex items-center gap-2">
+                <span className="bg-yellow-300 text-black border border-black font-mono font-bold text-[11px] px-2 py-0.5 uppercase">
+                  PRODUCTO DESTACADO
+                </span>
+              </div>
+            </div>
+
+            {/* Spotlight Product Details */}
+            {currentProduct && (
+              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                   <div className="sm:col-span-5 relative group cursor-pointer" onClick={() => onSelectProduct(currentProduct)}>
                     <div className="aspect-square bg-slate-100 border-2 border-black overflow-hidden relative">
                       <img
