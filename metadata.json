@@ -1,5 +1,6 @@
 {
-  "name": "Mr. Perkins Parfums",
-  "description": "Exclusive luxury fragrance boutique specializing in Lattafa perfumes, featuring an AI concierge.",
-  "requestFramePermissions": []
+  "name": "Mr. Perkins - Perfumes & Desodorantes",
+  "description": "Sitio web brutalista para Mr. Perkins con catálogo en vivo desde Google Sheets, carrusel animado, marcas, medios de pago y pedidos por WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
