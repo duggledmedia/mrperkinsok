@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
-import { Sparkles, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
+import { Sparkles, ChevronLeft, ChevronRight, Tag, Truck, CreditCard, MapPin } from 'lucide-react';
 import { ComicSticker, getProductStickers } from './ComicSticker';
 
 interface AnimatedCarouselHeaderProps {
