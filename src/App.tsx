@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Brand, PaymentMethod, CartItem, FilterState, SheetData } from './types';
 import { INITIAL_PRODUCTS, INITIAL_BRANDS, INITIAL_PAYMENT_METHODS } from './data/mockData';
+import { fetchSheetDataClient } from './services/sheetService';
 import { Navbar } from './components/Navbar';
 import { AnimatedCarouselHeader } from './components/AnimatedCarouselHeader';
 import { BrandGrid } from './components/BrandGrid';
@@ -80,40 +81,47 @@ export default function App() {
     }, 2800);
   };
 
-  // Fetch Live Data from Backend / Google Sheet API
+  // Fetch Live Data from Backend / Google Sheet API with Direct Client Fallback
   const fetchSheetData = async () => {
     setIsSyncing(true);
+    let data: SheetData | null = null;
+
+    // 1. Try server API route first
     try {
       const response = await fetch('/api/sheet-data');
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (response.ok) {
+        data = await response.json();
       }
-      const data: SheetData = await response.json();
+    } catch {
+      // Ignore server API failure on Vercel/static hosts
+    }
 
-      if (data.products && data.products.length > 0) {
-        setProducts(data.products);
+    // 2. If server API failed or was unavailable, fetch directly from Google Sheets client-side
+    if (!data || !data.products || data.products.length === 0) {
+      try {
+        data = await fetchSheetDataClient();
+      } catch (err: any) {
+        console.warn('Fallback a datos locales por error en fetch directo', err);
       }
+    }
+
+    if (data && data.products && data.products.length > 0) {
+      setProducts(data.products);
       if (data.brands && data.brands.length > 0) {
         setBrands(data.brands);
       }
       if (data.paymentMethods && data.paymentMethods.length > 0) {
         setPaymentMethods(data.paymentMethods);
       }
-
       setIsLive(data.isLive);
-      setLastUpdated(data.lastUpdated);
-      if (data.error) {
-        setErrorMessage(data.error);
-      } else {
-        setErrorMessage(null);
-      }
-    } catch (err: any) {
-      console.warn('Fallback a datos locales por error en fetch', err);
+      setLastUpdated(data.lastUpdated || new Date().toISOString());
+      setErrorMessage(null);
+    } else {
       setIsLive(false);
-      setErrorMessage('No se pudo conectar directamente con Google Sheet. Mostrando inventario local.');
-    } finally {
-      setIsSyncing(false);
+      setErrorMessage('No se pudo conectar con Google Sheets. Mostrando inventario de respaldo.');
     }
+
+    setIsSyncing(false);
   };
 
   useEffect(() => {
