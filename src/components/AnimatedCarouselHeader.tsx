@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
-import { Truck, CreditCard, MapPin, Sparkles, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
+import { Sparkles, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
+import { ComicSticker, getProductStickers } from './ComicSticker';
 
 interface AnimatedCarouselHeaderProps {
   products: Product[];
@@ -100,31 +101,8 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
             </p>
           </div>
 
-          {/* Right Column: Dynamic Rotating Spotlight Product WITH ANIMATED STICKERS */}
+          {/* Right Column: Dynamic Rotating Spotlight Product WITH ANIMATED COMIC STICKERS */}
           <div className="lg:col-span-7 relative">
-            
-            {/* Animated Floating Stickers Over Product */}
-            <div className="absolute -top-3 -left-2 z-20 animate-bounce pointer-events-none">
-              <div className="bg-yellow-300 text-black border-2 border-black px-2 py-1 font-mono font-black text-[10px] sm:text-xs shadow-[3px_3px_0px_0px_#000] rotate-[-6deg] flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5 text-black" />
-                <span>🚚 ENVÍO SIN CARGO</span>
-              </div>
-            </div>
-
-            <div className="absolute -bottom-2 -left-2 z-20 animate-pulse pointer-events-none hidden sm:block">
-              <div className="bg-pink-400 text-black border-2 border-black px-2 py-1 font-mono font-black text-[10px] sm:text-xs shadow-[3px_3px_0px_0px_#000] rotate-[4deg] flex items-center gap-1">
-                <CreditCard className="w-3.5 h-3.5 text-black" />
-                <span>💳 HASTA 3 CUOTAS SIN INTERÉS</span>
-              </div>
-            </div>
-
-            <div className="absolute -top-3 -right-2 z-20 animate-bounce [animation-delay:0.5s] pointer-events-none">
-              <div className="bg-cyan-300 text-black border-2 border-black px-2 py-1 font-mono font-black text-[10px] sm:text-xs shadow-[3px_3px_0px_0px_#000] rotate-[5deg] flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-black" />
-                <span>📦 ENVIOS A TODO EL PAÍS</span>
-              </div>
-            </div>
-
             <div
               onMouseEnter={() => setIsPaused(true)}
               onMouseLeave={() => setIsPaused(false)}
@@ -176,6 +154,20 @@ export const AnimatedCarouselHeader: React.FC<AnimatedCarouselHeaderProps> = ({
                       <div className="absolute top-1.5 left-1.5 bg-black text-white text-[9px] font-mono font-bold px-1.5 py-0.2 border border-white">
                         {currentProduct.marca}
                       </div>
+
+                      {/* Comic Bubble Stickers Overlay for Spotlight Product */}
+                      <div className="absolute bottom-1.5 left-1.5 flex flex-col items-start gap-1 z-20 pointer-events-none">
+                        {getProductStickers(currentProduct.id).map((s, idx) => (
+                          <ComicSticker
+                            key={idx}
+                            text={s.text}
+                            bg={s.bg}
+                            rotate={s.rotate}
+                            animation={s.animation}
+                          />
+                        ))}
+                      </div>
+
                       {currentProduct.stock === 'No' ? (
                         <div className="absolute bottom-1.5 right-1.5 bg-pink-600 text-white font-black text-[10px] px-1.5 py-0.2 border border-black">
                           AGOTADO
