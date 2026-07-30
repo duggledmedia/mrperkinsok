@@ -128,7 +128,7 @@ export default async function handler(req: Request, res: Response) {
       const clasificacion = rawClasificacion
         ? rawClasificacion.split(',').map(s => s.trim()).filter(Boolean)
         : [tipo, genero];
-      const imgUrl = row['img_url'] || row['imgUrl'] || row['Imagen'] || 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80';
+      const imgUrl = (row['img_url'] || row['imgUrl'] || row['Imagen'] || '').trim();
 
       return {
         id,
@@ -143,7 +143,7 @@ export default async function handler(req: Request, res: Response) {
         clasificacion,
         imgUrl
       };
-    }).filter(p => Boolean(p.producto));
+    }).filter(p => Boolean(p.producto) && Boolean(p.imgUrl));
 
     const brandsMap = new Map<string, { marca: string; imgUrl: string }>();
     marcasRows.forEach((row) => {

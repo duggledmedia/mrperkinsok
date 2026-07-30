@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Brand, Product } from '../types';
-import { Layers, Sparkles } from 'lucide-react';
+import { Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface BrandGridProps {
   brands: Brand[];
@@ -15,6 +15,8 @@ export const BrandGrid: React.FC<BrandGridProps> = ({
   selectedBrand,
   onSelectBrand
 }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   // Compute total product count per brand
   const brandCounts: Record<string, number> = {};
   products.forEach((p) => {
@@ -50,131 +52,122 @@ export const BrandGrid: React.FC<BrandGridProps> = ({
     })
   ];
 
-  // Distribute items across 3 rows for multi-row infinite marquee
-  const row1 = allItems.filter((_, idx) => idx % 3 === 0);
-  const row2 = allItems.filter((_, idx) => idx % 3 === 1);
-  const row3 = allItems.filter((_, idx) => idx % 3 === 2);
-
-  // Duplicate items in each row to create seamless loop
-  const duplicateRow = (rowItems: typeof allItems) => {
-    if (rowItems.length === 0) return [];
-    // Ensure at least 8 elements per loop
-    let list = [...rowItems];
-    while (list.length < 10) {
-      list = [...list, ...rowItems];
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const amount = direction === 'left' ? -300 : 300;
+      scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
     }
-    return [...list, ...list];
-  };
-
-  const row1Loop = duplicateRow(row1);
-  const row2Loop = duplicateRow(row2);
-  const row3Loop = duplicateRow(row3);
-
-  const renderBrandCard = (item: typeof allItems[0], indexKey: string) => {
-    const isSelected = selectedBrand.toLowerCase() === item.name.toLowerCase();
-
-    return (
-      <button
-        key={indexKey}
-        onClick={() => onSelectBrand(item.name)}
-        className={`relative w-28 h-28 sm:w-36 sm:h-36 flex-shrink-0 mx-2 border-3 border-black bg-gradient-to-b from-white via-slate-50 to-neutral-200 overflow-hidden group cursor-pointer transition-all duration-300 flex flex-col justify-between p-2 text-left ${
-          isSelected
-            ? 'shadow-[5px_5px_0px_0px_#EC4899] border-pink-500 ring-2 ring-black -translate-y-1 bg-gradient-to-b from-yellow-50 via-yellow-100 to-yellow-200'
-            : 'shadow-[4px_4px_0px_0px_#000] hover:shadow-[6px_6px_0px_0px_#000] hover:-translate-y-1 hover:border-black'
-        }`}
-      >
-        {/* Top Badges */}
-        <div className="flex justify-between items-start w-full z-10">
-          {item.name === '' ? (
-            <span className="bg-pink-500 text-black text-[9px] font-mono font-black px-1.5 py-0.5 border border-black shadow-xs">
-              TODAS
-            </span>
-          ) : (
-            <span className="bg-black text-yellow-300 text-[9px] font-mono font-bold px-1.5 py-0.5 border border-black shadow-xs">
-              {item.count} PROD
-            </span>
-          )}
-
-          {isSelected && (
-            <span className="bg-yellow-300 text-black text-[9px] font-mono font-black px-1 py-0.5 border border-black">
-              ✓
-            </span>
-          )}
-        </div>
-
-        {/* Center Logo / Image Container */}
-        <div className="w-full h-14 sm:h-18 my-auto flex items-center justify-center p-1 relative overflow-hidden">
-          <img
-            src={item.imgUrl}
-            alt={item.label}
-            className="w-full h-full object-contain group-hover:scale-115 transition-transform duration-300 drop-shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = defaultImg;
-            }}
-          />
-        </div>
-
-        {/* Bottom Label */}
-        <div className="w-full text-center z-10 bg-white/90 backdrop-blur-xs border border-black px-1 py-0.5 shadow-xs">
-          <span className="font-extrabold text-[10px] sm:text-xs uppercase font-sans text-black block truncate">
-            {item.label}
-          </span>
-        </div>
-      </button>
-    );
   };
 
   return (
-    <section className="my-8">
+    <section className="my-6">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b-4 border-black pb-3">
-        <div className="flex items-center gap-3">
-          <div className="bg-cyan-300 border-3 border-black p-2 shadow-[3px_3px_0px_0px_#000]">
-            <Layers className="w-6 h-6 text-black" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 border-b-4 border-black pb-2">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-cyan-300 border-2 border-black p-1.5 shadow-[2px_2px_0px_0px_#000]">
+            <Layers className="w-5 h-5 text-black" />
           </div>
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight font-sans">
-              MARCAS EXCLUSIVAS
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight font-sans">
+              MARCAS DE CATALOGO
             </h2>
-            <p className="text-xs font-mono font-bold text-slate-600">
-              Desplazamiento horizontal continuo en 3 filas (pasá el cursor para pausar)
+            <p className="text-[11px] font-mono font-bold text-slate-600">
+              Deslizá horizontalmente para explorar por marca
             </p>
           </div>
         </div>
 
-        {/* Reset Filter Button */}
-        {selectedBrand && (
-          <button
-            onClick={() => onSelectBrand('')}
-            className="bg-yellow-300 hover:bg-yellow-400 border-2 border-black px-4 py-1.5 font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-2"
-          >
-            <span>Mostrar Todas las Marcas</span>
-            <span className="bg-black text-white px-1.5 py-0.5 text-[10px] font-mono">✕</span>
-          </button>
-        )}
+        {/* Header Controls */}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {selectedBrand && (
+            <button
+              onClick={() => onSelectBrand('')}
+              className="bg-yellow-300 hover:bg-yellow-400 border-2 border-black px-2.5 py-1 font-black text-[11px] uppercase shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Ver Todas</span>
+              <span className="bg-black text-white px-1 py-0.2 text-[9px] font-mono">✕</span>
+            </button>
+          )}
+
+          {/* Scroll Arrows */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => scroll('left')}
+              className="bg-black text-white hover:bg-pink-500 hover:text-black p-1.5 border border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer transition-colors"
+              title="Anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scroll('right')}
+              className="bg-black text-white hover:bg-pink-500 hover:text-black p-1.5 border border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer transition-colors"
+              title="Siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* 3-Row Horizontal Infinite Marquee Container */}
-      <div className="bg-gradient-to-b from-slate-100 via-slate-50 to-amber-50 border-4 border-black p-3 shadow-[6px_6px_0px_0px_#000] space-y-3 overflow-hidden">
-        {/* Row 1: Left Scroll */}
-        <div className="overflow-hidden whitespace-nowrap relative flex">
-          <div className="animate-marquee hover:[animation-play-state:paused] flex items-center">
-            {row1Loop.map((item, idx) => renderBrandCard(item, `row1-${idx}-${item.name}`))}
-          </div>
-        </div>
+      {/* Horizontal Navigatable Brands Ribbon Container */}
+      <div className="bg-slate-100 border-3 border-black p-2.5 shadow-[4px_4px_0px_0px_#000] relative">
+        <div
+          ref={scrollRef}
+          className="flex items-center gap-2.5 overflow-x-auto scrollbar-thin scrollbar-thumb-black scrollbar-track-slate-200 py-1 px-0.5 scroll-smooth select-none"
+        >
+          {allItems.map((item, idx) => {
+            const isSelected = selectedBrand.toLowerCase() === item.name.toLowerCase();
 
-        {/* Row 2: Right Scroll (Reverse) */}
-        <div className="overflow-hidden whitespace-nowrap relative flex">
-          <div className="animate-marquee-reverse hover:[animation-play-state:paused] flex items-center">
-            {row2Loop.map((item, idx) => renderBrandCard(item, `row2-${idx}-${item.name}`))}
-          </div>
-        </div>
+            return (
+              <button
+                key={`${item.name}-${idx}`}
+                onClick={() => onSelectBrand(item.name)}
+                className={`relative w-20 sm:w-24 h-20 sm:h-24 flex-shrink-0 border-2 border-black bg-white overflow-hidden group cursor-pointer transition-all duration-200 flex flex-col justify-between p-1.5 text-left ${
+                  isSelected
+                    ? 'shadow-[3px_3px_0px_0px_#EC4899] border-pink-500 ring-2 ring-black -translate-y-0.5 bg-yellow-50'
+                    : 'shadow-[3px_3px_0px_0px_#000] hover:shadow-[4px_4px_0px_0px_#000] hover:-translate-y-0.5 hover:border-black'
+                }`}
+              >
+                {/* Top Badges */}
+                <div className="flex justify-between items-start w-full z-10">
+                  {item.name === '' ? (
+                    <span className="bg-pink-500 text-black text-[8px] font-mono font-black px-1 py-0.2 border border-black">
+                      TODAS
+                    </span>
+                  ) : (
+                    <span className="bg-black text-yellow-300 text-[8px] font-mono font-bold px-1 py-0.2 border border-black">
+                      {item.count}
+                    </span>
+                  )}
 
-        {/* Row 3: Left Scroll */}
-        <div className="overflow-hidden whitespace-nowrap relative flex">
-          <div className="animate-marquee hover:[animation-play-state:paused] flex items-center">
-            {row3Loop.map((item, idx) => renderBrandCard(item, `row3-${idx}-${item.name}`))}
-          </div>
+                  {isSelected && (
+                    <span className="bg-yellow-300 text-black text-[8px] font-mono font-black px-1 py-0.2 border border-black">
+                      ✓
+                    </span>
+                  )}
+                </div>
+
+                {/* Center Logo */}
+                <div className="w-full h-10 sm:h-12 my-auto flex items-center justify-center p-0.5 relative overflow-hidden">
+                  <img
+                    src={item.imgUrl}
+                    alt={item.label}
+                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-200"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = defaultImg;
+                    }}
+                  />
+                </div>
+
+                {/* Bottom Label */}
+                <div className="w-full text-center z-10 bg-white/95 border border-black px-0.5 py-0.2">
+                  <span className="font-extrabold text-[9px] uppercase font-sans text-black block truncate leading-none">
+                    {item.label}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>

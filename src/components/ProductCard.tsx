@@ -6,12 +6,14 @@ interface ProductCardProps {
   product: Product;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product, e: React.MouseEvent) => void;
+  onImageError?: (productId: string) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onSelectProduct,
-  onAddToCart
+  onAddToCart,
+  onImageError
 }) => {
   const isOut = product.stock === 'No';
 
@@ -43,9 +45,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           loading="lazy"
           decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80';
+          onError={() => {
+            if (onImageError) {
+              onImageError(product.id);
+            }
           }}
         />
 
@@ -100,12 +103,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {/* Price & Action Row */}
-        <div className="pt-2 border-t-2 border-black flex items-center justify-between gap-2">
-          <div>
-            <span className="text-[10px] font-mono uppercase text-slate-500 font-bold block">
+        <div className="pt-2 border-t-2 border-black flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+          <div className="min-w-0">
+            <span className="text-[9px] font-mono uppercase text-slate-500 font-bold block leading-none">
               Precio Venta
             </span>
-            <span className="text-xl font-black text-black font-mono leading-none">
+            <span className="text-base sm:text-xl font-black text-black font-mono leading-none truncate block">
               ${product.precioVenta.toLocaleString('es-AR')}
             </span>
           </div>
@@ -113,13 +116,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             disabled={isOut}
             onClick={(e) => onAddToCart(product, e)}
-            className={`border-2 border-black px-3 py-2 font-black text-xs uppercase transition-all flex items-center gap-1.5 cursor-pointer shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 ${
+            className={`border-2 border-black px-2 py-1 sm:px-3 sm:py-1.5 font-black text-[11px] sm:text-xs uppercase transition-all flex items-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 whitespace-nowrap ${
               isOut
                 ? 'bg-slate-200 text-slate-500 border-slate-400 cursor-not-allowed shadow-none'
                 : 'bg-lime-300 hover:bg-lime-400 text-black hover:-translate-y-0.5'
             }`}
           >
-            <ShoppingBag className="w-4 h-4" />
+            <ShoppingBag className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{isOut ? 'Agotado' : 'Comprar'}</span>
           </button>
         </div>

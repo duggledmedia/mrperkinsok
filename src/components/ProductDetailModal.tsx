@@ -6,12 +6,14 @@ interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
   onAddToCart: (product: Product, quantity: number) => void;
+  onImageError?: (productId: string) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
   onClose,
-  onAddToCart
+  onAddToCart,
+  onImageError
 }) => {
   const [quantity, setQuantity] = useState(1);
 
@@ -53,9 +55,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 src={product.imgUrl}
                 alt={product.producto}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80';
+                onError={() => {
+                  if (onImageError && product) {
+                    onImageError(product.id);
+                  }
+                  onClose();
                 }}
               />
               <div className="absolute top-2 left-2 bg-yellow-300 text-black text-xs font-black font-mono px-2 py-0.5 border border-black">
@@ -204,6 +208,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 >
                   <MessageCircle className="w-5 h-5" />
                   <span>Pedir por WhatsApp</span>
+                </button>
+              </div>
+
+              {/* Explicit Back to Catalog Button */}
+              <div className="pt-2">
+                <button
+                  onClick={onClose}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-black border-2 border-black py-2 px-4 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  <span>← VOLVER AL CATÁLOGO</span>
                 </button>
               </div>
             </div>

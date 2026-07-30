@@ -54,18 +54,39 @@ export default function App() {
   // Pagination / Load More for performance
   const [visibleCount, setVisibleCount] = useState(36);
 
+  // Set of product IDs whose images failed to load
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+
+  const handleImageError = (productId: string) => {
+    setFailedImageIds((prev) => {
+      if (prev.has(productId)) return prev;
+      const next = new Set(prev);
+      next.add(productId);
+      return next;
+    });
+  };
+
   useEffect(() => {
     setVisibleCount(36);
   }, [filters, products]);
 
+  // Valid products that have an image URL and haven't failed image loading
+  const validProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (!p.imgUrl || !p.imgUrl.trim()) return false;
+      if (failedImageIds.has(p.id)) return false;
+      return true;
+    });
+  }, [products, failedImageIds]);
+
   // Random 10 featured products selected for each user session/connection
   const featuredProducts = useMemo(() => {
-    if (!products || products.length === 0) return [];
-    const inStock = products.filter((p) => p.stock !== 'No');
-    const pool = inStock.length >= 10 ? inStock : products;
+    if (!validProducts || validProducts.length === 0) return [];
+    const inStock = validProducts.filter((p) => p.stock !== 'No');
+    const pool = inStock.length >= 10 ? inStock : validProducts;
     const shuffled = [...pool].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 10);
-  }, [products]);
+  }, [validProducts]);
 
   // Modal States
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -130,17 +151,30 @@ export default function App() {
 
   // Filter & Sort Logic
   const filteredProducts = useMemo(() => {
-    return products
+    const normalize = (str: string) =>
+      str
+        ? str
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+        : '';
+
+    return validProducts
       .filter((p) => {
-        // Search Query match
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          const matchName = p.producto.toLowerCase().includes(q);
-          const matchBrand = p.marca.toLowerCase().includes(q);
-          const matchDesc = p.descripcion.toLowerCase().includes(q);
-          const matchType = p.tipo.toLowerCase().includes(q);
-          const matchTags = (p.clasificacion || []).some((t) => t.toLowerCase().includes(q));
-          if (!matchName && !matchBrand && !matchDesc && !matchType && !matchTags) {
+        // Search Query match (Real-time multi-word search across name, brand, description, type, gender & tags)
+        if (filters.search && filters.search.trim()) {
+          const queryNorm = normalize(filters.search.trim());
+          const queryTokens = queryNorm.split(/\s+/).filter(Boolean);
+
+          const searchableText = normalize(
+            `${p.producto} ${p.marca} ${p.tipo} ${p.genero} ${p.descripcion} ${(p.clasificacion || []).join(' ')}`
+          );
+
+          const matchesAllTokens = queryTokens.every((token) =>
+            searchableText.includes(token)
+          );
+
+          if (!matchesAllTokens) {
             return false;
           }
         }
@@ -181,7 +215,7 @@ export default function App() {
         if (filters.sortBy === 'name') return a.producto.localeCompare(b.producto);
         return 0; // featured default
       });
-  }, [products, filters]);
+  }, [validProducts, filters]);
 
   // Cart Operations
   const handleAddToCart = (product: Product, quantity = 1, e?: React.MouseEvent) => {
@@ -252,6 +286,7 @@ export default function App() {
         products={featuredProducts}
         onSelectProduct={(p) => setSelectedProduct(p)}
         onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+        onImageError={handleImageError}
       />
 
       {/* Main Body Content Container */}
@@ -276,7 +311,7 @@ export default function App() {
         {/* Brand Logos Grid Section */}
         <BrandGrid
           brands={brands}
-          products={products}
+          products={validProducts}
           selectedBrand={filters.brand}
           onSelectBrand={(brandName) => setFilters((prev) => ({ ...prev, brand: brandName }))}
         />
@@ -296,7 +331,7 @@ export default function App() {
               sortBy: 'featured'
             })
           }
-          products={products}
+          products={validProducts}
         />
 
         {/* Catalog Product Grid Header */}
@@ -306,12 +341,16 @@ export default function App() {
               CATÁLOGO MR. PERKINS
             </span>
             <span className="text-sm font-black font-sans uppercase">
-              {filters.brand ? `MARCA: ${filters.brand.toUpperCase()}` : 'TODOS LOS PRODUCTOS'}
+              {filters.search
+                ? `BÚSQUEDA: "${filters.search}"${filters.brand ? ` (${filters.brand.toUpperCase()})` : ''}`
+                : filters.brand
+                ? `MARCA: ${filters.brand.toUpperCase()}`
+                : 'TODOS LOS PRODUCTOS'}
             </span>
           </div>
 
           <span className="text-xs font-mono font-bold text-slate-600">
-            Mostrando {filteredProducts.length} de {products.length} productos
+            Mostrando {filteredProducts.length} de {validProducts.length} productos
           </span>
         </div>
 
@@ -351,6 +390,7 @@ export default function App() {
                   product={product}
                   onSelectProduct={(p) => setSelectedProduct(p)}
                   onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+                  onImageError={handleImageError}
                 />
               ))}
             </div>
@@ -458,6 +498,7 @@ export default function App() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={(p, qty) => handleAddToCart(p, qty)}
+        onImageError={handleImageError}
       />
 
       <CartDrawer
