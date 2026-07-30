@@ -89,8 +89,8 @@ export const BrandGrid: React.FC<BrandGridProps> = ({
             </button>
           )}
 
-          {/* Scroll Arrows */}
-          <div className="flex items-center gap-1">
+          {/* Scroll Arrows - Hidden on mobile */}
+          <div className="hidden sm:flex items-center gap-1">
             <button
               onClick={() => scroll('left')}
               className="bg-black text-white hover:bg-pink-500 hover:text-black p-1.5 border border-black shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer transition-colors"
