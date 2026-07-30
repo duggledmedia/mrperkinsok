@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product, Brand, PaymentMethod, CartItem, FilterState, SheetData } from './types';
 import { INITIAL_PRODUCTS, INITIAL_BRANDS, INITIAL_PAYMENT_METHODS } from './data/mockData';
 import { fetchSheetDataClient } from './services/sheetService';
@@ -11,7 +11,7 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { PaymentMethodsSection } from './components/PaymentMethodsSection';
 import { CartDrawer } from './components/CartDrawer';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
-import { Sparkles, ShoppingBag, AlertCircle, RefreshCw, HeartHandshake, ShieldCheck, Truck, Check } from 'lucide-react';
+import { Sparkles, AlertCircle, RefreshCw, HeartHandshake, ShieldCheck, Truck, Check } from 'lucide-react';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -79,7 +79,7 @@ export default function App() {
     });
   }, [products, failedImageIds]);
 
-  // Random 10 featured products selected for each user session/connection
+  // Featured products selected for carousel
   const featuredProducts = useMemo(() => {
     if (!validProducts || validProducts.length === 0) return [];
     const inStock = validProducts.filter((p) => p.stock !== 'No');
@@ -95,12 +95,67 @@ export default function App() {
   // Notification Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 2800);
-  };
+  }, []);
+
+  // Deep linking: Read URL query parameters on initial mount & data load
+  const [hasProcessedInitialUrl, setHasProcessedInitialUrl] = useState(false);
+
+  useEffect(() => {
+    if (validProducts.length === 0 || hasProcessedInitialUrl) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('product');
+    const searchQuery = params.get('q') || params.get('search');
+    const brandQuery = params.get('brand');
+
+    if (productId) {
+      const found = validProducts.find((p) => p.id === productId || p.id.toLowerCase() === productId.toLowerCase());
+      if (found) {
+        setSelectedProduct(found);
+      }
+    }
+
+    if (searchQuery || brandQuery) {
+      setFilters((prev) => ({
+        ...prev,
+        search: searchQuery || prev.search,
+        brand: brandQuery || prev.brand
+      }));
+    }
+
+    setHasProcessedInitialUrl(true);
+  }, [validProducts, hasProcessedInitialUrl]);
+
+  // Synchronize URL with active product modal or active search/brand query
+  useEffect(() => {
+    if (!hasProcessedInitialUrl) return;
+
+    const url = new URL(window.location.href);
+
+    if (selectedProduct) {
+      url.searchParams.set('product', selectedProduct.id);
+    } else {
+      url.searchParams.delete('product');
+      if (filters.search) {
+        url.searchParams.set('q', filters.search);
+      } else {
+        url.searchParams.delete('q');
+      }
+
+      if (filters.brand) {
+        url.searchParams.set('brand', filters.brand);
+      } else {
+        url.searchParams.delete('brand');
+      }
+    }
+
+    window.history.replaceState({}, '', url.toString());
+  }, [selectedProduct, filters.search, filters.brand, hasProcessedInitialUrl]);
 
   // Fetch Live Data from Backend / Google Sheet API with Direct Client Fallback
   const fetchSheetData = async () => {
@@ -161,7 +216,7 @@ export default function App() {
 
     return validProducts
       .filter((p) => {
-        // Search Query match (Real-time multi-word search across name, brand, description, type, gender & tags)
+        // Search Query match
         if (filters.search && filters.search.trim()) {
           const queryNorm = normalize(filters.search.trim());
           const queryTokens = queryNorm.split(/\s+/).filter(Boolean);
@@ -213,7 +268,7 @@ export default function App() {
         if (filters.sortBy === 'price-asc') return a.precioVenta - b.precioVenta;
         if (filters.sortBy === 'price-desc') return b.precioVenta - a.precioVenta;
         if (filters.sortBy === 'name') return a.producto.localeCompare(b.producto);
-        return 0; // featured default
+        return 0;
       });
   }, [validProducts, filters]);
 
@@ -285,6 +340,7 @@ export default function App() {
         onSelectProduct={(p) => setSelectedProduct(p)}
         onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
         onImageError={handleImageError}
+        onShowToast={showToast}
       />
 
       {/* Main Body Content Container */}
@@ -330,6 +386,7 @@ export default function App() {
             })
           }
           products={validProducts}
+          onShowToast={showToast}
         />
 
         {/* Catalog Product Grid Header */}
@@ -385,6 +442,7 @@ export default function App() {
                   onSelectProduct={(p) => setSelectedProduct(p)}
                   onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
                   onImageError={handleImageError}
+                  onShowToast={showToast}
                 />
               ))}
             </div>
@@ -493,6 +551,7 @@ export default function App() {
         onClose={() => setSelectedProduct(null)}
         onAddToCart={(p, qty) => handleAddToCart(p, qty)}
         onImageError={handleImageError}
+        onShowToast={showToast}
       />
 
       <CartDrawer

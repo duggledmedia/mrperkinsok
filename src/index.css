@@ -117,7 +117,7 @@
 }
 
 .animate-sale-zoom {
-  animation: zoomInOut 8s ease-in-out infinite;
+  animation: zoomInOut 15s ease-in-out infinite;
 }
 
 /* Animated White to Light-Gray Gradient Shimmer Background */

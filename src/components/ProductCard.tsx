@@ -1,21 +1,36 @@
 import React from 'react';
 import { Product } from '../types';
-import { ShoppingBag, Eye, Tag } from 'lucide-react';
+import { ShoppingBag, Eye, Share2 } from 'lucide-react';
+import { shareProductLink } from '../utils/shareUtils';
 
 interface ProductCardProps {
   product: Product;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product, e: React.MouseEvent) => void;
   onImageError?: (productId: string) => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onSelectProduct,
   onAddToCart,
-  onImageError
+  onImageError,
+  onShowToast
 }) => {
   const isOut = product.stock === 'No';
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const res = await shareProductLink(product);
+    if (res.success && onShowToast) {
+      if (res.method === 'clipboard') {
+        onShowToast(`🔗 ¡Enlace de ${product.producto} copiado!`);
+      } else if (res.method === 'native') {
+        onShowToast(`🔗 Compartiendo ${product.producto}`);
+      }
+    }
+  };
 
   return (
     <div
@@ -37,12 +52,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           }}
         />
 
-        {/* Volume badge - Smaller on mobile */}
+        {/* Volume badge */}
         <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-white text-black text-[9px] sm:text-xs font-mono font-black px-1.5 py-0.5 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[2px_2px_0px_0px_#000]">
           {product.cantidad}
         </div>
 
-        {/* Stock Badge - Smaller on mobile */}
+        {/* Share Button top-right image overlay */}
+        <button
+          onClick={handleShare}
+          title="Compartir enlace de este producto"
+          className="absolute bottom-1.5 left-1.5 z-20 bg-yellow-300 hover:bg-yellow-400 text-black border sm:border-2 border-black p-1 sm:p-1.5 shadow-[1.5px_1.5px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1"
+        >
+          <Share2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+        </button>
+
+        {/* Stock Badge */}
         {isOut ? (
           <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-pink-600 text-white font-black text-[9px] sm:text-xs px-1.5 py-0.5 sm:px-2.5 sm:py-1 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[3px_3px_0px_0px_#000] rotate-2 z-10">
             AGOTADO
@@ -54,17 +78,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Quick inspection hover overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4 z-10">
           <span className="bg-yellow-300 text-black border-2 border-black font-black text-xs px-3 py-1.5 uppercase flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#000]">
             <Eye className="w-4 h-4" /> VER DETALLES
           </span>
         </div>
       </div>
 
-      {/* Product Information Body - Only display full product name cleanly */}
+      {/* Product Information Body */}
       <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2">
         <div className="flex-1 flex items-center">
-          {/* Product Full Name (Full visibility, no truncation) */}
           <h3 className="font-black text-xs sm:text-sm md:text-base uppercase leading-tight font-sans text-black group-hover:text-pink-600 transition-colors break-words w-full">
             {product.producto}
           </h3>

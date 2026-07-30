@@ -1,21 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
-import { X, ShoppingBag, MessageCircle, Truck, ShieldCheck, Tag, CreditCard } from 'lucide-react';
+import { X, ShoppingBag, MessageCircle, Truck, ShieldCheck, CreditCard, Share2 } from 'lucide-react';
+import { shareProductLink, getWhatsAppProductShareUrl, updateOpenGraphMeta } from '../utils/shareUtils';
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
   onAddToCart: (product: Product, quantity: number) => void;
   onImageError?: (productId: string) => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
   onClose,
   onAddToCart,
-  onImageError
+  onImageError,
+  onShowToast
 }) => {
   const [quantity, setQuantity] = useState(1);
+
+  useEffect(() => {
+    updateOpenGraphMeta(product);
+    return () => {
+      updateOpenGraphMeta(null);
+    };
+  }, [product]);
 
   if (!product) return null;
 
@@ -30,9 +40,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       `*Cantidad/Envase:* ${product.cantidad}\n` +
       `*Unidades:* ${quantity}\n` +
       `*Precio Total:* $${(product.precioVenta * quantity).toLocaleString('es-AR')} ARS\n\n` +
+      `🖼️ Foto: ${product.imgUrl}\n` +
+      `🔗 Ver enlace: ${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(product.id)}\n\n` +
       `¿Tienen stock disponible y formas de envío a mi domicilio? ¡Gracias!`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleShare = async () => {
+    const res = await shareProductLink(product);
+    if (res.success && onShowToast) {
+      if (res.method === 'clipboard') {
+        onShowToast(`🔗 ¡Enlace de ${product.producto} copiado!`);
+      } else if (res.method === 'native') {
+        onShowToast(`🔗 Compartiendo ${product.producto}`);
+      }
+    }
   };
 
   return (
@@ -43,22 +66,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200"
     >
       <div className="bg-white border-4 border-black w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-[12px_12px_0px_0px_#000] relative p-4 sm:p-6 space-y-6">
-        {/* Prominent Top-Right Close Cross Button */}
-        <button
-          onClick={onClose}
-          title="Cerrar ventana emergente"
-          aria-label="Cerrar ventana"
-          className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-50 bg-black text-white hover:bg-pink-500 hover:text-black p-2 sm:p-2.5 border-2 border-black font-black font-mono transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 flex items-center justify-center gap-1 group"
-        >
-          <X className="w-6 h-6 stroke-[3]" />
-          <span className="text-[10px] sm:text-xs font-mono font-bold uppercase hidden sm:inline">Cerrar</span>
-        </button>
+        {/* Top Header Buttons: Share & Close */}
+        <div className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-50 flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            title="Compartir enlace con foto"
+            className="bg-yellow-300 text-black hover:bg-yellow-400 px-2.5 py-2 border-2 border-black font-black font-mono transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 flex items-center justify-center gap-1.5"
+          >
+            <Share2 className="w-5 h-5 stroke-[2.5]" />
+            <span className="text-[10px] sm:text-xs font-mono font-bold uppercase hidden sm:inline">Compartir</span>
+          </button>
+
+          <button
+            onClick={onClose}
+            title="Cerrar ventana emergente"
+            aria-label="Cerrar ventana"
+            className="bg-black text-white hover:bg-pink-500 hover:text-black p-2 sm:p-2 border-2 border-black font-black font-mono transition-all cursor-pointer shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 flex items-center justify-center gap-1 group"
+          >
+            <X className="w-6 h-6 stroke-[3]" />
+            <span className="text-[10px] sm:text-xs font-mono font-bold uppercase hidden sm:inline">Cerrar</span>
+          </button>
+        </div>
 
         {/* Modal Content Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pt-6 sm:pt-2">
           {/* Image Column */}
           <div className="md:col-span-5 space-y-3">
-            <div className="aspect-square bg-slate-100 border-4 border-black relative overflow-hidden">
+            <div className="aspect-square bg-slate-100 border-4 border-black relative overflow-hidden shadow-[4px_4px_0px_0px_#000]">
               <img
                 src={product.imgUrl}
                 alt={product.producto}
@@ -86,7 +120,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
 
             {/* Quick Guarantees Badges */}
-            <div className="bg-yellow-100 border-2 border-black p-3 space-y-1.5 text-xs font-mono font-bold">
+            <div className="bg-yellow-100 border-2 border-black p-3 space-y-1.5 text-xs font-mono font-bold shadow-[2px_2px_0px_0px_#000]">
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4 text-black" />
                 <span>Envío Gratis en CABA ($45.000+)</span>
@@ -220,13 +254,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </button>
               </div>
 
-              {/* Explicit Back to Catalog Button */}
-              <div className="pt-2">
+              {/* Explicit Share & Back Row */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={handleShare}
+                  className="flex-1 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black py-2 px-3 font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>COMPARTIR ENLACE Y FOTO</span>
+                </button>
                 <button
                   onClick={onClose}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-black border-2 border-black py-2 px-4 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                  className="bg-slate-100 hover:bg-slate-200 text-black border-2 border-black py-2 px-4 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
                 >
-                  <span>← VOLVER AL CATÁLOGO</span>
+                  <span>VOLVER</span>
                 </button>
               </div>
             </div>
