@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag } from 'lucide-react';
 
 interface NavbarProps {
@@ -10,13 +10,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   cartCount,
   onOpenCart,
 }) => {
+  const [showFloatingLogo, setShowFloatingLogo] = useState(false);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  useEffect(() => {
+    const handleScroll = () => {
+      // Show top-left logo only when scrolled past top header logo area
+      if (window.scrollY > 120) {
+        setShowFloatingLogo(true);
+      } else {
+        setShowFloatingLogo(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <>
-      {/* Top Moving Marquee Ticker & Main Header Title (Scrolls away with page) */}
+      {/* Top Moving Marquee Ticker */}
       <div className="bg-yellow-300 border-b-2 border-black py-1 overflow-hidden whitespace-nowrap select-none font-mono font-black text-xs uppercase tracking-wider text-black">
         <div className="inline-flex animate-marquee gap-8 items-center">
           {[1, 2, 3, 4].map((i) => (
@@ -39,32 +56,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Main Header Title Bar (Scrolls away with the page) */}
-      <header className="bg-white border-b-3 border-black py-2.5 px-4 shadow-[0_2px_0_0_#000]">
-        <div className="max-w-7xl mx-auto flex items-center justify-center text-center">
-          <button onClick={scrollToTop} className="cursor-pointer group flex flex-col items-center">
-            <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight uppercase leading-none font-sans text-black group-hover:text-pink-600 transition-colors">
-              MR. PERKINS
-            </h1>
+      {/* FLOATING LOGO BOX (Top Left - Fixed on Scroll, visible when scrolled past header) */}
+      {showFloatingLogo && (
+        <div className="fixed top-2.5 left-2.5 sm:top-3.5 sm:left-4 z-50 animate-float transition-all duration-300">
+          <button
+            onClick={scrollToTop}
+            title="Ir al inicio - Mr. Perkins"
+            aria-label="Ir al inicio"
+            className="bg-white border-3 border-black p-0.5 sm:p-1 shadow-[3px_3px_0px_0px_#000] hover:scale-105 active:scale-95 transition-transform overflow-hidden flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 cursor-pointer"
+          >
+            <img
+              src="https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png"
+              alt="Mr. Perkins Logo"
+              className="w-full h-full object-contain"
+            />
           </button>
         </div>
-      </header>
-
-      {/* FLOATING LOGO BOX (Top Left - Fixed on Scroll with Floating Animation) */}
-      <div className="fixed top-2.5 left-2.5 sm:top-3.5 sm:left-4 z-50 animate-float">
-        <button
-          onClick={scrollToTop}
-          title="Ir al inicio - Mr. Perkins"
-          aria-label="Ir al inicio"
-          className="bg-white border-3 border-black p-0.5 sm:p-1 shadow-[3px_3px_0px_0px_#000] hover:scale-105 active:scale-95 transition-transform overflow-hidden flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 cursor-pointer"
-        >
-          <img
-            src="https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png"
-            alt="Mr. Perkins Logo"
-            className="w-full h-full object-contain"
-          />
-        </button>
-      </div>
+      )}
 
       {/* FLOATING CART BOX (Top Right - Fixed on Scroll with Floating Animation) */}
       <div className="fixed top-2.5 right-2.5 sm:top-3.5 sm:right-4 z-50 animate-float-delayed">
@@ -83,5 +91,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
+
 
 

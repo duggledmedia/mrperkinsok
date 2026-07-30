@@ -71,12 +71,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {/* Price & Action Row */}
-        <div className="pt-2 border-t-2 border-black flex items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
-          <div className="min-w-0">
-            <span className="text-[9px] font-mono uppercase text-slate-500 font-bold block leading-none">
+        <div className="pt-2 border-t-2 border-black flex flex-wrap items-end justify-between gap-2">
+          <div className="flex flex-col min-w-0 flex-grow">
+            <span className="text-[9px] sm:text-[10px] font-mono uppercase text-slate-500 font-bold leading-none mb-1">
               Precio Venta
             </span>
-            <span className="text-base sm:text-xl font-black text-black font-mono leading-none truncate block">
+            <span className="text-sm sm:text-base md:text-lg font-black text-black font-mono leading-none whitespace-nowrap block tracking-tight">
               ${product.precioVenta.toLocaleString('es-AR')}
             </span>
           </div>
@@ -84,7 +84,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             disabled={isOut}
             onClick={(e) => onAddToCart(product, e)}
-            className={`border-2 border-black px-2 py-1 sm:px-3 sm:py-1.5 font-black text-[11px] sm:text-xs uppercase transition-all flex items-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 whitespace-nowrap ${
+            className={`border-2 border-black px-2 py-1.5 sm:px-3 sm:py-1.5 font-black text-[11px] sm:text-xs uppercase transition-all flex items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 whitespace-nowrap flex-shrink-0 ${
               isOut
                 ? 'bg-slate-200 text-slate-500 border-slate-400 cursor-not-allowed shadow-none'
                 : 'bg-lime-300 hover:bg-lime-400 text-black hover:-translate-y-0.5'

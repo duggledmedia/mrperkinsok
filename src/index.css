@@ -97,28 +97,32 @@
 
 /* Always Visible Custom Brutalist Scrollbar for Brand Carousel */
 .brand-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  overflow-x: scroll !important;
   scrollbar-width: thin;
   scrollbar-color: #facc15 #e2e8f0;
 }
 
 .brand-scrollbar::-webkit-scrollbar {
-  height: 10px !important;
+  height: 12px !important;
+  width: 12px !important;
   display: block !important;
+  -webkit-appearance: none;
 }
 
 .brand-scrollbar::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border: 2px solid #000000;
-  border-radius: 0px;
+  background: #e2e8f0 !important;
+  border: 2px solid #000000 !important;
+  border-radius: 0px !important;
 }
 
 .brand-scrollbar::-webkit-scrollbar-thumb {
-  background: #facc15;
-  border: 2px solid #000000;
-  border-radius: 0px;
+  background: #facc15 !important;
+  border: 2px solid #000000 !important;
+  border-radius: 0px !important;
 }
 
 .brand-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #ec4899;
+  background: #ec4899 !important;
 }
 

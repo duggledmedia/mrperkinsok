@@ -113,8 +113,11 @@ export const BrandGrid: React.FC<BrandGridProps> = ({
           onMouseEnter={() => { isHovered.current = true; }}
           onMouseLeave={() => { isHovered.current = false; }}
           onTouchStart={() => { isHovered.current = true; }}
-          onTouchEnd={() => { isHovered.current = false; }}
-          className="flex items-center gap-6 sm:gap-10 md:gap-14 overflow-x-auto brand-scrollbar py-1 px-2 select-none"
+          onTouchEnd={() => {
+            setTimeout(() => { isHovered.current = false; }, 1000);
+          }}
+          onTouchCancel={() => { isHovered.current = false; }}
+          className="flex items-center gap-6 sm:gap-10 md:gap-14 overflow-x-auto brand-scrollbar py-2 px-2 select-none"
         >
           {displayList.map((brand, idx) => {
             const isSelected = selectedBrand.toLowerCase() === brand.name.toLowerCase();
