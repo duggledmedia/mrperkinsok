@@ -1,7 +1,6 @@
 import React from 'react';
 import { Product } from '../types';
 import { ShoppingBag, Eye, Tag } from 'lucide-react';
-import { ComicSticker, getProductStickers } from './ComicSticker';
 
 interface ProductCardProps {
   product: Product;
@@ -17,7 +16,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onImageError
 }) => {
   const isOut = product.stock === 'No';
-  const stickers = getProductStickers(product.id);
 
   return (
     <div
@@ -69,19 +67,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             EN STOCK
           </div>
         )}
-
-        {/* Dynamic Comic Bubble Stickers Overlay */}
-        <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1 z-20 pointer-events-none">
-          {stickers.map((s, idx) => (
-            <ComicSticker
-              key={idx}
-              text={s.text}
-              bg={s.bg}
-              rotate={s.rotate}
-              animation={s.animation}
-            />
-          ))}
-        </div>
 
         {/* Quick inspection hover overlay */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import { X, ShoppingBag, MessageCircle, Truck, ShieldCheck, Tag, CreditCard } from 'lucide-react';
-import { ComicSticker, getProductStickers } from './ComicSticker';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -67,18 +66,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 {product.marca}
               </div>
 
-              {/* Dynamic Comic Bubble Stickers Overlay */}
-              <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1 z-20 pointer-events-none">
-                {getProductStickers(product.id).map((s, idx) => (
-                  <ComicSticker
-                    key={idx}
-                    text={s.text}
-                    bg={s.bg}
-                    rotate={s.rotate}
-                    animation={s.animation}
-                  />
-                ))}
-              </div>
               {isOut ? (
                 <div className="absolute bottom-2 right-2 bg-pink-600 text-white font-black text-sm px-3 py-1 border-2 border-black rotate-2">
                   AGOTADO
