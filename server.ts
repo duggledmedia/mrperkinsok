@@ -11,6 +11,26 @@ const CATALOGO_GID = '809374575';
 
 let cachedProducts: Product[] = INITIAL_PRODUCTS;
 
+function formatImageUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let url = rawUrl.trim();
+
+  // Convert Google Drive view/open links to direct image stream URLs
+  if (url.includes('drive.google.com')) {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return `https://lh3.googleusercontent.com/d/${match[1]}`;
+    }
+  }
+
+  // Convert Dropbox share links to raw image stream URLs
+  if (url.includes('dropbox.com')) {
+    return url.replace('?dl=0', '?raw=1').replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+  }
+
+  return url;
+}
+
 function escapeHtml(str: string): string {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -115,23 +135,77 @@ async function fetchCsvFromGoogleSheet(sheetNameOrGid: { name?: string; gid?: st
   return parsed.data as Record<string, string>[];
 }
 
+async function fetchAndCacheProducts(): Promise<Product[]> {
+  try {
+    let catalogRows: Record<string, string>[] = [];
+    try {
+      catalogRows = await fetchCsvFromGoogleSheet({ gid: CATALOGO_GID });
+    } catch (err) {
+      catalogRows = await fetchCsvFromGoogleSheet({ name: 'Catalogo' });
+    }
+
+    const products: Product[] = catalogRows.map((row, idx) => {
+      const id = row['ID'] || row['id'] || String(idx + 1);
+      const stockRaw = (row['Stock'] || row['stock'] || 'Si').trim();
+      const stock = stockRaw.toLowerCase() === 'no' || stockRaw.toLowerCase() === 'false' || stockRaw.toLowerCase() === '0' ? 'No' : 'Si';
+      const producto = row['Producto'] || row['producto'] || row['Nombre'] || 'Producto Mr. Perkins';
+      const marca = row['Marca'] || row['marca'] || 'Mr. Perkins';
+      const cantidad = row['Cantidad'] || row['cantidad'] || row['Contenido'] || '100 ml';
+      const tipo = row['Tipo'] || row['tipo'] || 'Perfume';
+      const genero = row['Género'] || row['genero'] || row['Genero'] || 'Unisex';
+      const precioVenta = extractPriceFromRow(row, idx);
+      const descripcion = row['Descripción'] || row['descripcion'] || row['Descripcion'] || '';
+      const rawClasificacion = row['Clasificación (Etiquetas)'] || row['Clasificación'] || row['clasificacion'] || row['Etiquetas'] || '';
+      const clasificacion = rawClasificacion
+        ? rawClasificacion.split(',').map(s => s.trim()).filter(Boolean)
+        : [tipo, genero];
+
+      const rawImg = row['img_url'] || row['imgUrl'] || row['Imagen'] || '';
+      const imgUrl = formatImageUrl(rawImg) || INITIAL_PRODUCTS[idx % INITIAL_PRODUCTS.length]?.imgUrl || 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80';
+
+      return {
+        id,
+        stock,
+        producto,
+        marca,
+        cantidad,
+        tipo,
+        genero,
+        precioVenta,
+        descripcion,
+        clasificacion,
+        imgUrl
+      };
+    }).filter(p => Boolean(p.producto));
+
+    if (products.length > 0) {
+      cachedProducts = products;
+      return products;
+    }
+  } catch (err) {
+    console.warn('[Mr. Perkins Server] Warning during product fetch:', err);
+  }
+  return cachedProducts;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Preload products from Google Sheets on boot
+  fetchAndCacheProducts().then((prods) => {
+    console.log(`[Mr. Perkins Server] Preloaded ${prods.length} products for share metadata.`);
+  }).catch((err) => {
+    console.warn('[Mr. Perkins Server] Could not preload products on boot:', err);
+  });
 
   app.use(express.json());
 
   // API Route: Live data from Google Sheets
   app.get('/api/sheet-data', async (req, res) => {
     try {
-      // 1. Fetch Catalogo
-      let catalogRows: Record<string, string>[] = [];
-      try {
-        catalogRows = await fetchCsvFromGoogleSheet({ gid: CATALOGO_GID });
-      } catch (err) {
-        console.warn('Fallback por GID falló, intentando por nombre "Catalogo"...', err);
-        catalogRows = await fetchCsvFromGoogleSheet({ name: 'Catalogo' });
-      }
+      // 1. Fetch Catalogo and refresh product cache
+      const products = await fetchAndCacheProducts();
 
       // 2. Fetch Marcas
       let marcasRows: Record<string, string>[] = [];
@@ -149,48 +223,11 @@ async function startServer() {
         console.warn('Hoja MediosPago no encontrada o inaccesible', err);
       }
 
-      // Process Products (SECURITY: Stripping 'Precio Costo (ARS)' completely!)
-      const products: Product[] = catalogRows.map((row, idx) => {
-        // Handle various header column name casing
-        const id = row['ID'] || row['id'] || String(idx + 1);
-        const stockRaw = (row['Stock'] || row['stock'] || 'Si').trim();
-        const stock = stockRaw.toLowerCase() === 'no' || stockRaw.toLowerCase() === 'false' || stockRaw.toLowerCase() === '0' ? 'No' : 'Si';
-        const producto = row['Producto'] || row['producto'] || row['Nombre'] || 'Producto Mr. Perkins';
-        const marca = row['Marca'] || row['marca'] || 'Mr. Perkins';
-        const cantidad = row['Cantidad'] || row['cantidad'] || row['Contenido'] || '100 ml';
-        const tipo = row['Tipo'] || row['tipo'] || 'Perfume';
-        const genero = row['Género'] || row['genero'] || row['Genero'] || 'Unisex';
-        
-        // Parse price with multi-column fallback
-        const precioVenta = extractPriceFromRow(row, idx);
-
-        const descripcion = row['Descripción'] || row['descripcion'] || row['Descripcion'] || '';
-        const rawClasificacion = row['Clasificación (Etiquetas)'] || row['Clasificación'] || row['clasificacion'] || row['Etiquetas'] || '';
-        const clasificacion = rawClasificacion
-          ? rawClasificacion.split(',').map(s => s.trim()).filter(Boolean)
-          : [tipo, genero];
-
-        const imgUrl = row['img_url'] || row['imgUrl'] || row['Imagen'] || 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80';
-
-        return {
-          id,
-          stock,
-          producto,
-          marca,
-          cantidad,
-          tipo,
-          genero,
-          precioVenta,
-          descripcion,
-          clasificacion,
-          imgUrl
-        };
-      }).filter(p => Boolean(p.producto));
-
       // Process Brands
       const brands: Brand[] = marcasRows.map((row) => {
         const marca = row['Marca'] || row['marca'] || '';
-        const imgUrl = row['img_url'] || row['imgUrl'] || '';
+        const rawImg = row['img_url'] || row['imgUrl'] || '';
+        const imgUrl = formatImageUrl(rawImg);
         return { marca, imgUrl };
       }).filter(b => Boolean(b.marca));
 
@@ -202,10 +239,6 @@ async function startServer() {
         const activo = activoRaw.toLowerCase() === 'no' ? 'No' : 'Si';
         return { medio_de_pago, desc_mp, activo };
       }).filter(pm => Boolean(pm.medio_de_pago));
-
-      if (products.length > 0) {
-        cachedProducts = products;
-      }
 
       res.json({
         products: products.length > 0 ? products : INITIAL_PRODUCTS,
@@ -247,9 +280,17 @@ async function startServer() {
     const productId = req.query.product as string;
     if (!productId) return next();
 
-    const product = cachedProducts.find(
+    let product = cachedProducts.find(
       (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
     );
+
+    if (!product) {
+      const refreshed = await fetchAndCacheProducts();
+      product = refreshed.find(
+        (p) => String(p.id).toLowerCase() === String(productId).toLowerCase()
+      );
+    }
+
     if (!product) return next();
 
     try {
@@ -262,15 +303,16 @@ async function startServer() {
         rawHtml = fs.readFileSync(distIndexPath, 'utf-8');
       }
 
-      const pTitle = `${product.producto} - MR. PERKINS`;
-      const pDesc = `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
-      const pImg = product.imgUrl;
+      const pTitle = `${product.producto} (${product.marca}) - MR. PERKINS`;
+      const pDesc = `🔥 ¡Mirá ${product.producto} en MR. PERKINS! Marca: ${product.marca} | ${product.cantidad} | Precio: $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
+      const pImg = formatImageUrl(product.imgUrl);
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.get('host');
       const fullUrl = `${protocol}://${host}/?product=${encodeURIComponent(product.id)}`;
 
       // Construct complete set of social Open Graph meta tags for WhatsApp/Facebook/Twitter previews
       const ogMetaTags = `
+    <!-- Dynamic Product Social Preview Tags -->
     <title>${escapeHtml(pTitle)}</title>
     <meta property="og:type" content="product" />
     <meta property="og:site_name" content="MR. PERKINS" />
@@ -278,23 +320,27 @@ async function startServer() {
     <meta property="og:description" content="${escapeHtml(pDesc)}" />
     <meta property="og:image" content="${escapeHtml(pImg)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(pImg)}" />
+    <meta property="og:image:url" content="${escapeHtml(pImg)}" />
     <meta property="og:image:type" content="image/jpeg" />
-    <meta property="og:image:width" content="600" />
-    <meta property="og:image:height" content="600" />
+    <meta property="og:image:width" content="800" />
+    <meta property="og:image:height" content="800" />
+    <meta property="og:image:alt" content="${escapeHtml(product.producto)}" />
     <meta property="og:url" content="${escapeHtml(fullUrl)}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(pTitle)}" />
     <meta name="twitter:description" content="${escapeHtml(pDesc)}" />
     <meta name="twitter:image" content="${escapeHtml(pImg)}" />
     <meta name="twitter:image:src" content="${escapeHtml(pImg)}" />
+    <link rel="image_src" href="${escapeHtml(pImg)}" />
       `;
 
       let html = rawHtml
         .replace(/<title>.*?<\/title>/gi, '')
         .replace(/<meta\s+property="og:[^"]*"\s+content="[^"]*"\s*\/?>/gi, '')
-        .replace(/<meta\s+name="twitter:[^"]*"\s+content="[^"]*"\s*\/?>/gi, '');
+        .replace(/<meta\s+name="twitter:[^"]*"\s+content="[^"]*"\s*\/?>/gi, '')
+        .replace(/<link\s+rel="image_src"[^>]*\/?>/gi, '');
 
-      html = html.replace('</head>', `${ogMetaTags}\n  </head>`);
+      html = html.replace('<head>', `<head>\n${ogMetaTags}`);
 
       if (process.env.NODE_ENV !== 'production' && viteDevServer) {
         html = await viteDevServer.transformIndexHtml(req.originalUrl, html);
