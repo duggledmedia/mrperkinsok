@@ -1,12 +1,14 @@
 import React from 'react';
 import { Product } from '../types';
-import { ShoppingBag, Eye, Share2 } from 'lucide-react';
+import { ShoppingBag, Eye, Share2, Sparkles } from 'lucide-react';
 import { shareProductLink } from '../utils/shareUtils';
+import { DISCOVERY_SAMPLE_PRICE } from '../utils/constants';
 
 interface ProductCardProps {
   product: Product;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product, e: React.MouseEvent) => void;
+  onAddDiscoverySample?: (product: Product, e: React.MouseEvent) => void;
   onImageError?: (productId: string) => void;
   onShowToast?: (msg: string) => void;
 }
@@ -15,6 +17,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onSelectProduct,
   onAddToCart,
+  onAddDiscoverySample,
   onImageError,
   onShowToast
 }) => {
@@ -61,7 +64,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <button
           onClick={handleShare}
           title="Compartir enlace de este producto"
-          className="absolute bottom-1.5 left-1.5 z-20 bg-yellow-300 hover:bg-yellow-400 text-black border sm:border-2 border-black p-1 sm:p-1.5 shadow-[1.5px_1.5px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1"
+          className="absolute bottom-1.5 left-1.5 z-20 bg-[#E5A93C] hover:bg-amber-400 text-black border sm:border-2 border-black p-1 sm:p-1.5 shadow-[1.5px_1.5px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1"
         >
           <Share2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
         </button>
@@ -72,14 +75,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             AGOTADO
           </div>
         ) : (
-          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-lime-400 text-black font-black text-[9px] sm:text-[11px] px-1.5 py-0.5 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[2px_2px_0px_0px_#000] z-10">
+          <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-emerald-400 text-black font-black text-[9px] sm:text-[11px] px-1.5 py-0.5 border sm:border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] sm:shadow-[2px_2px_0px_0px_#000] z-10">
             EN STOCK
           </div>
         )}
 
         {/* Quick inspection hover overlay */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4 z-10">
-          <span className="bg-yellow-300 text-black border-2 border-black font-black text-xs px-3 py-1.5 uppercase flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#000]">
+          <span className="bg-[#E5A93C] text-black border-2 border-black font-black text-xs px-3 py-1.5 uppercase flex items-center gap-1.5 shadow-[3px_3px_0px_0px_#000]">
             <Eye className="w-4 h-4" /> VER DETALLES
           </span>
         </div>
@@ -87,35 +90,61 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Product Information Body */}
       <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2">
-        <div className="flex-1 flex items-center">
-          <h3 className="font-black text-xs sm:text-sm md:text-base uppercase leading-tight font-sans text-black group-hover:text-pink-600 transition-colors break-words w-full">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-500">
+            <span className="truncate">{product.marca}</span>
+            <span className="bg-slate-100 px-1 py-0.2 border border-slate-300">{product.tipo}</span>
+          </div>
+          <h3 className="font-black text-xs sm:text-sm md:text-base uppercase leading-tight font-sans text-black group-hover:text-[#C99846] transition-colors break-words line-clamp-2">
             {product.producto}
           </h3>
         </div>
 
-        {/* Price & Action Row */}
-        <div className="pt-2 border-t-2 border-black flex flex-wrap items-end justify-between gap-2">
-          <div className="flex flex-col min-w-0 flex-grow">
-            <span className="text-[9px] sm:text-[10px] font-mono uppercase text-slate-500 font-bold leading-none mb-1">
-              Precio Venta
-            </span>
-            <span className="text-sm sm:text-base md:text-lg font-black text-black font-mono leading-none whitespace-nowrap block tracking-tight">
+        {/* Price & Action Block - Mobile-first layout */}
+        <div className="pt-2 border-t-2 border-black/15 flex flex-col gap-2 mt-auto">
+          <div className="flex flex-col">
+            <span className="text-sm sm:text-base md:text-lg font-black text-black font-mono leading-tight tracking-tight block">
               ${product.precioVenta.toLocaleString('es-AR')}
+            </span>
+            <span className="text-[9px] sm:text-[10px] font-mono text-emerald-800 font-bold leading-tight block mt-0.5">
+              3 cuotas s/i de ${Math.round(product.precioVenta / 3).toLocaleString('es-AR')}
             </span>
           </div>
 
-          <button
-            disabled={isOut}
-            onClick={(e) => onAddToCart(product, e)}
-            className={`border-2 border-black px-2 py-1.5 sm:px-3 sm:py-1.5 font-black text-[11px] sm:text-xs uppercase transition-all flex items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 whitespace-nowrap flex-shrink-0 ${
-              isOut
-                ? 'bg-slate-200 text-slate-500 border-slate-400 cursor-not-allowed shadow-none'
-                : 'bg-lime-300 hover:bg-lime-400 text-black hover:-translate-y-0.5'
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{isOut ? 'Agotado' : 'Comprar'}</span>
-          </button>
+          <div className="grid grid-cols-2 gap-1.5">
+            {/* Full Bottle Button */}
+            <button
+              disabled={isOut}
+              onClick={(e) => onAddToCart(product, e)}
+              className={`border-2 border-black py-2 px-1 font-black text-[10px] sm:text-xs uppercase transition-all flex items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 ${
+                isOut
+                  ? 'bg-slate-200 text-slate-500 border-slate-400 cursor-not-allowed shadow-none'
+                  : 'bg-[#E5A93C] hover:bg-amber-500 text-black hover:-translate-y-0.5'
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{isOut ? 'Agotado' : '+ Frasco'}</span>
+            </button>
+
+            {/* Discovery Kit Sample Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onAddDiscoverySample) {
+                  onAddDiscoverySample(product, e);
+                }
+              }}
+              title={`Sumar muestra al Kit de Descubrimiento ($${DISCOVERY_SAMPLE_PRICE.toLocaleString('es-AR')})`}
+              className="border-2 border-black py-2 px-1 font-bold text-[10px] sm:text-xs uppercase transition-all flex items-center justify-center gap-1 cursor-pointer shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 bg-white hover:bg-amber-100 text-black hover:-translate-y-0.5"
+            >
+              <Sparkles className="w-3 h-3 text-[#E5A93C] shrink-0 fill-[#E5A93C]" />
+              <span className="truncate">+ Kit $10k</span>
+            </button>
+          </div>
+
+          <div className="text-[9px] font-mono text-slate-500 leading-none text-center">
+            Muestra $10.000 • Se descuenta de tu próximo frasco
+          </div>
         </div>
       </div>
     </div>

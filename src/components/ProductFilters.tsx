@@ -41,80 +41,84 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   };
 
   return (
-    <div className="bg-white border-3 border-black p-2 sm:p-2.5 mb-5 shadow-[3px_3px_0px_0px_#000] space-y-2">
-      {/* Top Row: Single Line Filter Row */}
-      <div className="flex flex-row items-center justify-between gap-1 sm:gap-2">
-        {/* Left Indicator */}
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-          <div className="bg-pink-400 p-0.5 sm:p-1 border border-black shadow-xs">
-            <Filter className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" />
+    <div className="bg-white border-3 border-black p-2.5 sm:p-3 mb-5 shadow-[3px_3px_0px_0px_#000] space-y-2.5">
+      {/* Top Row: Filter Indicator and Clear Button */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="bg-[#E5A93C] p-1 border border-black shadow-xs">
+            <Filter className="w-3.5 h-3.5 text-black" />
           </div>
-          <span className="font-black uppercase text-[9px] sm:text-xs font-sans tracking-tight whitespace-nowrap">
+          <span className="font-black uppercase text-xs font-sans tracking-tight">
             FILTRAR POR:
           </span>
-        </div>
-
-        {/* Dropdowns inline in single row */}
-        <div className="grid grid-cols-3 gap-1 sm:gap-1.5 flex-1 min-w-0 max-w-lg">
-          {/* Tipo Filter */}
-          <select
-            value={filters.type}
-            onChange={(e) => onFilterChange({ type: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
-          >
-            <option value="">TIPO</option>
-            {availableTypes.map((t) => (
-              <option key={t} value={t}>
-                {t.toUpperCase()}
-              </option>
-            ))}
-          </select>
-
-          {/* Género Filter */}
-          <select
-            value={filters.gender}
-            onChange={(e) => onFilterChange({ gender: e.target.value })}
-            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
-          >
-            <option value="">GÉNERO</option>
-            {availableGenders.map((g) => (
-              <option key={g} value={g}>
-                {g.toUpperCase()}
-              </option>
-            ))}
-          </select>
-
-          {/* Precio Sort Filter */}
-          <select
-            value={filters.sortBy === 'price-asc' || filters.sortBy === 'price-desc' ? filters.sortBy : ''}
-            onChange={(e) =>
-              onFilterChange({
-                sortBy: (e.target.value as 'price-asc' | 'price-desc') || 'featured'
-              })
-            }
-            className="w-full bg-slate-50 border-2 border-black px-1 sm:px-2 py-1 font-bold text-[10px] sm:text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
-          >
-            <option value="">PRECIO</option>
-            <option value="price-asc">MENOR A MAYOR</option>
-            <option value="price-desc">MAYOR A MENOR</option>
-          </select>
+          {hasActiveFilters && (
+            <span className="bg-black text-[#E5A93C] text-[10px] font-mono font-bold px-1.5 py-0.5 border border-black">
+              FILTROS ACTIVOS
+            </span>
+          )}
         </div>
 
         {/* Clear Filters Button */}
         {hasActiveFilters && (
           <button
             onClick={() => onFilterChange({ type: '', gender: '', search: '', brand: '', sortBy: 'featured' })}
-            className="bg-black text-white hover:bg-pink-600 border border-black px-2 py-1 font-mono text-[9px] sm:text-xs font-bold flex items-center justify-center gap-0.5 sm:gap-1 cursor-pointer transition-colors flex-shrink-0"
+            className="bg-black text-white hover:bg-pink-600 border border-black px-2.5 py-1 font-mono text-[10px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
             title="Limpiar Filtros"
           >
-            <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-            <span className="hidden xs:inline">LIMPIAR</span>
+            <RotateCcw className="w-3 h-3" />
+            <span>LIMPIAR</span>
           </button>
         )}
       </div>
 
+      {/* Middle Row: Full-width responsive 3-column Dropdowns Grid */}
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {/* Tipo Filter */}
+        <select
+          value={filters.type}
+          onChange={(e) => onFilterChange({ type: e.target.value })}
+          className="w-full bg-slate-50 border-2 border-black px-2 py-1.5 font-bold text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+        >
+          <option value="">TIPO (TODOS)</option>
+          {availableTypes.map((t) => (
+            <option key={t} value={t}>
+              {t.toUpperCase()}
+            </option>
+          ))}
+        </select>
+
+        {/* Género Filter */}
+        <select
+          value={filters.gender}
+          onChange={(e) => onFilterChange({ gender: e.target.value })}
+          className="w-full bg-slate-50 border-2 border-black px-2 py-1.5 font-bold text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+        >
+          <option value="">GÉNERO (TODOS)</option>
+          {availableGenders.map((g) => (
+            <option key={g} value={g}>
+              {g.toUpperCase()}
+            </option>
+          ))}
+        </select>
+
+        {/* Precio Sort Filter */}
+        <select
+          value={filters.sortBy === 'price-asc' || filters.sortBy === 'price-desc' ? filters.sortBy : ''}
+          onChange={(e) =>
+            onFilterChange({
+              sortBy: (e.target.value as 'price-asc' | 'price-desc') || 'featured'
+            })
+          }
+          className="w-full bg-slate-50 border-2 border-black px-2 py-1.5 font-bold text-xs text-black focus:bg-yellow-100 focus:outline-none cursor-pointer truncate"
+        >
+          <option value="">PRECIO (DEFECTO)</option>
+          <option value="price-asc">MENOR A MAYOR</option>
+          <option value="price-desc">MAYOR A MENOR</option>
+        </select>
+      </div>
+
       {/* Bottom Row: Search Bar directly below filters */}
-      <div className="pt-1.5 border-t border-black/20 flex items-center gap-2">
+      <div className="pt-2 border-t border-black/15 flex items-center gap-2">
         <div className="relative flex-1 flex items-center">
           <Search className="w-4 h-4 absolute left-2.5 text-black pointer-events-none" />
           <input

@@ -1,6 +1,6 @@
 {
-  "name": "Mr. Perkins - Perfumes & Desodorantes",
-  "description": "Sitio web brutalista para Mr. Perkins con catálogo en vivo desde Google Sheets, carrusel animado, marcas, medios de pago y pedidos por WhatsApp.",
+  "name": "Mr . Perkins — Sommelier de Fragancias",
+  "description": "Perfumería multimarca guiada por Mr . Perkins, sommelier de fragancias. Encontrá tu perfume ideal, kit de descubrimiento y catálogo exclusivo con envíos a todo el país.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -25,13 +25,13 @@ export const PaymentMethodsSection: React.FC<PaymentMethodsSectionProps> = ({
   };
 
   return (
-    <section className="my-12 bg-slate-50 border-4 border-black p-6 shadow-[8px_8px_0px_0px_#000]">
+    <section className="my-12 bg-slate-50 border-4 border-black p-4 sm:p-6 shadow-[8px_8px_0px_0px_#000]">
       <div className="flex items-center gap-3 border-b-3 border-black pb-4 mb-6">
-        <div className="bg-yellow-300 border-2 border-black p-2 shadow-[2px_2px_0px_0px_#000]">
+        <div className="bg-yellow-300 border-2 border-black p-2 shadow-[2px_2px_0px_0px_#000] shrink-0">
           <CreditCard className="w-6 h-6 text-black" />
         </div>
         <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight font-sans">
+          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight font-sans break-words leading-tight">
             MEDIOS DE PAGO HABILITADOS
           </h2>
           <p className="text-xs font-mono font-bold text-slate-600">

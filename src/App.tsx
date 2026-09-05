@@ -3,7 +3,13 @@ import { Product, Brand, PaymentMethod, CartItem, FilterState, SheetData } from 
 import { INITIAL_PRODUCTS, INITIAL_BRANDS, INITIAL_PAYMENT_METHODS } from './data/mockData';
 import { fetchSheetDataClient } from './services/sheetService';
 import { Navbar } from './components/Navbar';
-import { AnimatedCarouselHeader } from './components/AnimatedCarouselHeader';
+import { HeroEditorial } from './components/HeroEditorial';
+import { IntentionsSection } from './components/IntentionsSection';
+import { FragranceTest } from './components/FragranceTest';
+import { MrPerkinsSelection } from './components/MrPerkinsSelection';
+import { EditorialCuratedBlocks } from './components/EditorialCuratedBlocks';
+import { DiscoveryKitSection } from './components/DiscoveryKitSection';
+import { OffersSection } from './components/OffersSection';
 import { BrandGrid } from './components/BrandGrid';
 import { ProductFilters } from './components/ProductFilters';
 import { ProductCard } from './components/ProductCard';
@@ -11,7 +17,25 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { PaymentMethodsSection } from './components/PaymentMethodsSection';
 import { CartDrawer } from './components/CartDrawer';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
-import { Sparkles, AlertCircle, RefreshCw, HeartHandshake, ShieldCheck, Truck, Check } from 'lucide-react';
+import {
+  Sparkles,
+  AlertCircle,
+  RefreshCw,
+  HeartHandshake,
+  ShieldCheck,
+  Truck,
+  Check,
+  Store,
+  Compass,
+  ArrowRight
+} from 'lucide-react';
+import {
+  BRAND_LOGO_PATH,
+  WHATSAPP_PHONE_DISPLAY,
+  WHATSAPP_PHONE_INTERNATIONAL,
+  IntentionOption,
+  trackFunnelEvent
+} from './utils/constants';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -21,6 +45,9 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Active View: 'home' (Discovery & Editorial) | 'tienda' (Full Catalog) | 'ofertas' (Deals)
+  const [activeView, setActiveView] = useState<'home' | 'tienda' | 'ofertas'>('home');
 
   // Cart State with LocalStorage persistence
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
@@ -40,7 +67,7 @@ export default function App() {
     }
   }, [cartItems]);
 
-  // Filter State
+  // Filter State for Tienda
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     brand: '',
@@ -51,7 +78,10 @@ export default function App() {
     sortBy: 'featured'
   });
 
-  // Pagination / Load More for performance
+  // Selected Intention ID if any
+  const [activeIntentionId, setActiveIntentionId] = useState<string | null>(null);
+
+  // Pagination / Load More for catalog performance
   const [visibleCount, setVisibleCount] = useState(36);
 
   // Set of product IDs whose images failed to load
@@ -79,15 +109,6 @@ export default function App() {
     });
   }, [products, failedImageIds]);
 
-  // Featured products selected for carousel
-  const featuredProducts = useMemo(() => {
-    if (!validProducts || validProducts.length === 0) return [];
-    const inStock = validProducts.filter((p) => p.stock !== 'No');
-    const pool = inStock.length >= 10 ? inStock : validProducts;
-    const shuffled = [...pool].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 10);
-  }, [validProducts]);
-
   // Modal States
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -109,7 +130,7 @@ export default function App() {
     if (products.length === 0 || hasProcessedInitialUrl) return;
 
     const params = new URLSearchParams(window.location.search);
-    let productId = params.get('product');
+    let productId = params.get('producto') || params.get('product') || params.get('id');
 
     const path = window.location.pathname;
     const pathMatch = path.match(/^\/(?:producto|p)\/([^/]+)/i);
@@ -119,6 +140,11 @@ export default function App() {
 
     const searchQuery = params.get('q') || params.get('search');
     const brandQuery = params.get('brand');
+    const viewQuery = params.get('view');
+
+    if (viewQuery === 'tienda' || viewQuery === 'ofertas') {
+      setActiveView(viewQuery as 'tienda' | 'ofertas');
+    }
 
     if (productId) {
       const targetId = String(productId).toLowerCase();
@@ -129,6 +155,7 @@ export default function App() {
     }
 
     if (searchQuery || brandQuery) {
+      setActiveView('tienda');
       setFilters((prev) => ({
         ...prev,
         search: searchQuery || prev.search,
@@ -139,6 +166,30 @@ export default function App() {
     setHasProcessedInitialUrl(true);
   }, [products, hasProcessedInitialUrl]);
 
+  // Handle browser back/forward history navigation (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      let productId = params.get('producto') || params.get('product') || params.get('id');
+      const pathMatch = window.location.pathname.match(/^\/(?:producto|p)\/([^/]+)/i);
+      if (pathMatch && pathMatch[1]) {
+        productId = decodeURIComponent(pathMatch[1]);
+      }
+
+      if (productId) {
+        const found = products.find((p) => String(p.id).toLowerCase() === String(productId).toLowerCase());
+        if (found) {
+          setSelectedProduct(found);
+          return;
+        }
+      }
+      setSelectedProduct(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
+
   // Synchronize URL with active product modal or active search/brand query
   useEffect(() => {
     if (!hasProcessedInitialUrl) return;
@@ -146,12 +197,20 @@ export default function App() {
     if (selectedProduct) {
       const cleanPath = `/producto/${encodeURIComponent(selectedProduct.id)}`;
       if (window.location.pathname !== cleanPath) {
-        window.history.replaceState({}, '', cleanPath);
+        window.history.pushState({}, '', cleanPath);
       }
     } else {
       const url = new URL(window.location.href);
       url.pathname = '/';
       url.searchParams.delete('product');
+      url.searchParams.delete('producto');
+      url.searchParams.delete('id');
+
+      if (activeView !== 'home') {
+        url.searchParams.set('view', activeView);
+      } else {
+        url.searchParams.delete('view');
+      }
 
       if (filters.search) {
         url.searchParams.set('q', filters.search);
@@ -166,26 +225,28 @@ export default function App() {
       }
 
       const newUrl = url.pathname + (url.search ? url.search : '');
-      window.history.replaceState({}, '', newUrl);
+      if (window.location.pathname.startsWith('/producto/') || window.location.pathname.startsWith('/p/')) {
+        window.history.pushState({}, '', newUrl);
+      } else {
+        window.history.replaceState({}, '', newUrl);
+      }
     }
-  }, [selectedProduct, filters.search, filters.brand, hasProcessedInitialUrl]);
+  }, [selectedProduct, filters.search, filters.brand, activeView, hasProcessedInitialUrl]);
 
   // Fetch Live Data from Backend / Google Sheet API with Direct Client Fallback
   const fetchSheetData = async () => {
     setIsSyncing(true);
     let data: SheetData | null = null;
 
-    // 1. Try server API route first
     try {
       const response = await fetch('/api/sheet-data');
       if (response.ok) {
         data = await response.json();
       }
     } catch {
-      // Ignore server API failure on Vercel/static hosts
+      // Ignore server API failure on client static run
     }
 
-    // 2. If server API failed or was unavailable, fetch directly from Google Sheets client-side
     if (!data || !data.products || data.products.length === 0) {
       try {
         data = await fetchSheetDataClient();
@@ -217,7 +278,7 @@ export default function App() {
     fetchSheetData();
   }, []);
 
-  // Filter & Sort Logic
+  // Filter & Sort Logic for Tienda
   const filteredProducts = useMemo(() => {
     const normalize = (str: string) =>
       str
@@ -318,7 +379,7 @@ export default function App() {
           return item;
         })
         .filter(Boolean) as CartItem[]
-    );
+      );
   };
 
   const handleRemoveCartItem = (productId: string) => {
@@ -331,12 +392,97 @@ export default function App() {
 
   const cartTotalCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
+  // Navigation handlers
+  const handleStartFragranceTest = () => {
+    setActiveView('home');
+    setTimeout(() => {
+      const el = document.getElementById('encontra-tu-perfume');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  const handleScrollToBrands = () => {
+    setActiveView('tienda');
+    setTimeout(() => {
+      const el = document.getElementById('marcas-grid');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  const handleSelectIntention = (intention: IntentionOption) => {
+    setActiveIntentionId(intention.id);
+    setActiveView('tienda');
+
+    // Apply appropriate filter based on intention
+    setFilters((prev) => {
+      const reset = {
+        ...prev,
+        search: '',
+        brand: '',
+        type: '',
+        gender: '',
+        inStockOnly: false,
+        tag: '',
+        sortBy: 'featured' as const
+      };
+
+      if (intention.id === 'diario') {
+        return { ...reset, search: 'fresco' };
+      }
+      if (intention.id === 'noche') {
+        return { ...reset, search: 'intenso' };
+      }
+      if (intention.id === 'cita') {
+        return { ...reset, search: 'vainilla' };
+      }
+      if (intention.id === 'oficina') {
+        return { ...reset, search: 'limpio' };
+      }
+      if (intention.id === 'regalar') {
+        return { ...reset, inStockOnly: true };
+      }
+      if (intention.id === 'notar') {
+        return { ...reset, search: 'parfum' };
+      }
+      if (intention.id === 'fresco') {
+        return { ...reset, search: 'cítrico' };
+      }
+      if (intention.id === 'dulce') {
+        return { ...reset, search: 'dulce' };
+      }
+      if (intention.id === 'sorprendeme') {
+        return { ...reset, sortBy: 'price-desc' };
+      }
+      return reset;
+    });
+
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const handleGoToStoreWithSearch = (searchQuery: string) => {
+    setActiveView('tienda');
+    setFilters((prev) => ({
+      ...prev,
+      search: searchQuery
+    }));
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
   return (
-    <div className="min-h-screen bg-white text-black font-sans flex flex-col selection:bg-yellow-300 selection:text-black">
+    <div className="min-h-screen bg-[#FAF8F5] text-black font-sans flex flex-col selection:bg-[#E5A93C] selection:text-black">
+      
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 bg-black text-yellow-300 border-3 border-yellow-300 px-4 py-3 shadow-[6px_6px_0px_0px_#FF007F] font-mono font-black text-xs uppercase animate-in slide-in-from-top-5 duration-200 flex items-center gap-2">
-          <Check className="w-4 h-4 text-lime-400 stroke-[3]" />
+        <div className="fixed top-20 right-4 z-50 bg-black text-[#E5A93C] border-3 border-[#E5A93C] px-4 py-3 shadow-[6px_6px_0px_0px_#000] font-mono font-black text-xs uppercase animate-in slide-in-from-top-5 duration-200 flex items-center gap-2">
+          <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -345,23 +491,21 @@ export default function App() {
       <Navbar
         cartCount={cartTotalCount}
         onOpenCart={() => setIsCartOpen(true)}
+        activeView={activeView}
+        onNavigate={(view) => {
+          setActiveView(view);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onStartTest={handleStartFragranceTest}
+        onScrollToBrands={handleScrollToBrands}
+        searchQuery={filters.search}
+        onSearchChange={(q) => setFilters((prev) => ({ ...prev, search: q }))}
       />
 
-      {/* Hero Animated Carousel Header */}
-      <AnimatedCarouselHeader
-        products={featuredProducts}
-        onSelectProduct={(p) => setSelectedProduct(p)}
-        onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
-        onImageError={handleImageError}
-        onShowToast={showToast}
-      />
-
-      {/* Main Body Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
-        
-        {/* Error / Offline Banner if applicable */}
-        {errorMessage && (
-          <div className="bg-yellow-100 border-3 border-black p-4 shadow-[4px_4px_0px_0px_#000] flex items-center justify-between flex-wrap gap-3">
+      {/* Error / Offline Banner if applicable */}
+      {errorMessage && (
+        <div className="max-w-7xl mx-auto px-4 w-full pt-4">
+          <div className="bg-amber-100 border-3 border-black p-4 shadow-[4px_4px_0px_0px_#000] flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2 text-xs font-mono font-bold">
               <AlertCircle className="w-5 h-5 text-pink-600 shrink-0" />
               <span>{errorMessage}</span>
@@ -373,188 +517,385 @@ export default function App() {
               <RefreshCw className="w-3 h-3" /> Reintentar
             </button>
           </div>
-        )}
-
-        {/* Brand Logos Grid Section */}
-        <BrandGrid
-          brands={brands}
-          products={validProducts}
-          selectedBrand={filters.brand}
-          onSelectBrand={(brandName) => setFilters((prev) => ({ ...prev, brand: brandName }))}
-        />
-
-        {/* Product Filters Bar */}
-        <ProductFilters
-          filters={filters}
-          onFilterChange={(newFilters) => setFilters((prev) => ({ ...prev, ...newFilters }))}
-          onResetFilters={() =>
-            setFilters({
-              search: '',
-              brand: '',
-              type: '',
-              gender: '',
-              inStockOnly: false,
-              tag: '',
-              sortBy: 'featured'
-            })
-          }
-          products={validProducts}
-          onShowToast={showToast}
-        />
-
-        {/* Catalog Product Grid Header */}
-        <div className="flex items-center justify-between border-b-4 border-black pb-3">
-          <div className="flex items-center gap-2">
-            <span className="bg-black text-yellow-300 font-mono font-black text-xs px-2.5 py-1">
-              CATÁLOGO MR. PERKINS
-            </span>
-            <span className="text-sm font-black font-sans uppercase">
-              {filters.search
-                ? `BÚSQUEDA: "${filters.search}"${filters.brand ? ` (${filters.brand.toUpperCase()})` : ''}`
-                : filters.brand
-                ? `MARCA: ${filters.brand.toUpperCase()}`
-                : 'TODOS LOS PRODUCTOS'}
-            </span>
-          </div>
         </div>
+      )}
 
-        {/* Catalog Grid */}
-        {filteredProducts.length === 0 ? (
-          <div className="bg-slate-50 border-4 border-black p-12 text-center my-8 shadow-[6px_6px_0px_0px_#000] space-y-3">
-            <Sparkles className="w-12 h-12 mx-auto text-pink-500" />
-            <h3 className="text-2xl font-black uppercase font-sans">
-              No se encontraron productos con estos filtros
-            </h3>
-            <p className="text-xs font-mono text-slate-600 max-w-md mx-auto">
-              Probá modificando los términos de búsqueda o limpiando las marcas y filtros seleccionados.
-            </p>
-            <button
-              onClick={() =>
-                setFilters({
-                  search: '',
-                  brand: '',
-                  type: '',
-                  gender: '',
-                  inStockOnly: false,
-                  tag: '',
-                  sortBy: 'featured'
-                })
-              }
-              className="bg-yellow-300 hover:bg-yellow-400 border-2 border-black px-6 py-2 font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] cursor-pointer"
-            >
-              Restablecer Filtros
-            </button>
+      {/* ========================================================================= */}
+      {/* VIEW: HOME (DISCOVERY, EDITORIAL & SOMMELIER EXPERIENCE)                  */}
+      {/* ========================================================================= */}
+      {activeView === 'home' && (
+        <div className="space-y-0">
+          
+          {/* 1. Hero Editorial */}
+          <HeroEditorial
+            onStartTest={handleStartFragranceTest}
+            onGoToStore={() => {
+              setActiveView('tienda');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+
+          {/* 2. Bloque "¿Qué estás buscando hoy?" (Filtros de intención) */}
+          <IntentionsSection
+            onSelectIntention={handleSelectIntention}
+            activeIntentionId={activeIntentionId}
+          />
+
+          {/* 3. Bloque "Encontrá tu perfume" (Interactive Sommelier Test) */}
+          <FragranceTest
+            products={validProducts}
+            onSelectProduct={(p) => setSelectedProduct(p)}
+            onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+          />
+
+          {/* 4. Bloque "La Selección de Mr. Perkins" */}
+          <MrPerkinsSelection
+            products={validProducts}
+            onSelectProduct={(p) => setSelectedProduct(p)}
+            onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+            onViewAllSelection={() => {
+              setActiveView('tienda');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onShowToast={showToast}
+          />
+
+          {/* 5. Bloques Editoriales Curados (Huelen a limpio, No pasar desapercibido, Clásicos) */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <EditorialCuratedBlocks
+              products={validProducts}
+              onSelectProduct={(p) => setSelectedProduct(p)}
+              onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+              onGoToStoreWithFilter={handleGoToStoreWithSearch}
+            />
           </div>
-        ) : (
-          <div className="space-y-8">
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
-              {filteredProducts.slice(0, visibleCount).map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onSelectProduct={(p) => setSelectedProduct(p)}
-                  onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
-                  onImageError={handleImageError}
-                  onShowToast={showToast}
-                />
-              ))}
-            </div>
 
-            {/* Load More Products Button */}
-            {filteredProducts.length > visibleCount && (
-              <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
-                <button
-                  onClick={() => setVisibleCount((prev) => prev + 36)}
-                  className="bg-yellow-300 hover:bg-yellow-400 text-black border-4 border-black px-8 py-3 font-black text-sm uppercase shadow-[6px_6px_0px_0px_#000] hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 transition-all cursor-pointer font-sans tracking-wide"
-                >
-                  ⚡ MOSTRAR MÁS PRODUCTOS (+36)
-                </button>
-                <p className="text-xs font-mono font-bold text-slate-500">
-                  Mostrando {Math.min(visibleCount, filteredProducts.length)} de {filteredProducts.length} productos
+          {/* 6. Kit de Descubrimiento (Probá antes de elegir) */}
+          <DiscoveryKitSection />
+
+          {/* 7. Ofertas & Oportunidades Activas */}
+          <OffersSection
+            products={validProducts}
+            onSelectProduct={(p) => setSelectedProduct(p)}
+            onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+            onGoToStoreWithFilter={handleGoToStoreWithSearch}
+          />
+
+          {/* 8. Trust & Benefits Banner */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-white border-3 border-black p-6 shadow-[5px_5px_0px_0px_#000] space-y-2">
+                <Truck className="w-8 h-8 text-black mb-2" />
+                <h4 className="font-black text-base uppercase font-sans">ENVÍO A TODO EL PAÍS</h4>
+                <p className="text-xs font-sans text-slate-700 leading-relaxed">
+                  Despachamos con empaque de alta protección y seguimiento por Correo y Andreani. Retiro en CABA.
                 </p>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Payment Methods Section */}
-        <PaymentMethodsSection paymentMethods={paymentMethods} />
+              <div className="bg-white border-3 border-black p-6 shadow-[5px_5px_0px_0px_#000] space-y-2">
+                <ShieldCheck className="w-8 h-8 text-black mb-2" />
+                <h4 className="font-black text-base uppercase font-sans">100% ORIGINALES GARANTIZADOS</h4>
+                <p className="text-xs font-sans text-slate-700 leading-relaxed">
+                  Garantía estricta de procedencia y autenticidad en perfumes importados y fragancias de autor.
+                </p>
+              </div>
 
-        {/* Value Proposition Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t-4 border-black">
-          <div className="bg-yellow-300 border-3 border-black p-5 shadow-[4px_4px_0px_0px_#000] space-y-1">
-            <Truck className="w-8 h-8 text-black mb-2" />
-            <h4 className="font-black text-base uppercase font-sans">ENVÍO RÁPIDO Y SEGURO</h4>
-            <p className="text-xs font-sans text-black/80 font-medium">
-              Despachamos en 24hs a todo el territorio nacional con seguimiento online.
-            </p>
-          </div>
-
-          <div className="bg-pink-400 border-3 border-black p-5 shadow-[4px_4px_0px_0px_#000] space-y-1">
-            <ShieldCheck className="w-8 h-8 text-black mb-2" />
-            <h4 className="font-black text-base uppercase font-sans">100% FRAGANCIAS ORIGINALES</h4>
-            <p className="text-xs font-sans text-black/80 font-medium">
-              Garantía de autenticidad en perfumes importados y nuestra línea de autor.
-            </p>
-          </div>
-
-          <div className="bg-cyan-300 border-3 border-black p-5 shadow-[4px_4px_0px_0px_#000] space-y-1">
-            <HeartHandshake className="w-8 h-8 text-black mb-2" />
-            <h4 className="font-black text-base uppercase font-sans">ATENCIÓN PERSONALIZADA</h4>
-            <p className="text-xs font-sans text-black/80 font-medium">
-              Asesoramiento olfativo por WhatsApp para elegir tu fragancia ideal.
-            </p>
-          </div>
-        </div>
-
-      </main>
-
-      {/* Brutalist Footer */}
-      <footer className="bg-black text-white border-t-4 border-black mt-16 py-12">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="space-y-3">
-            <div className="inline-block bg-yellow-300 text-black border-2 border-white px-3 py-1 font-black text-xl font-sans uppercase shadow-[3px_3px_0px_0px_#fff]">
-              MR. PERKINS
+              <div className="bg-white border-3 border-black p-6 shadow-[5px_5px_0px_0px_#000] space-y-2">
+                <HeartHandshake className="w-8 h-8 text-black mb-2" />
+                <h4 className="font-black text-base uppercase font-sans">ASESORAMIENTO DIRECTO</h4>
+                <p className="text-xs font-sans text-slate-700 leading-relaxed">
+                  Atención humana por WhatsApp con Mr. Perkins para ayudarte a elegir tu fragancia ideal.
+                </p>
+              </div>
             </div>
-            <p className="text-xs font-sans text-slate-300 leading-relaxed">
-              Marca registrada de fragancias de nicho, perfumes de diseñador y desodorantes corporales de alta intensidad.
+          </section>
+
+          {/* 9. Medios de Pago */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+            <PaymentMethodsSection paymentMethods={paymentMethods} />
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW: TIENDA (DIRECT FULL CATALOG & ADVANCED FILTERS)                     */}
+      {/* ========================================================================= */}
+      {activeView === 'tienda' && (
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          
+          {/* Tienda View Header Banner */}
+          <div className="bg-[#121212] text-white border-4 border-black p-6 sm:p-8 shadow-[6px_6px_0px_0px_#000] flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 bg-[#E5A93C] text-black px-2.5 py-0.5 font-mono text-[11px] font-black uppercase">
+                <Store className="w-3.5 h-3.5" />
+                <span>CATÁLOGO COMPLETO</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black uppercase font-sans text-white">
+                LA TIENDA DE MR. PERKINS
+              </h1>
+              <p className="text-xs sm:text-sm font-sans text-slate-300">
+                Explorá todos los perfumes importados, nacionales y de autor con stock en tiempo real.
+              </p>
+            </div>
+
+            <button
+              onClick={handleStartFragranceTest}
+              className="bg-[#E5A93C] hover:bg-amber-500 text-black border-2 border-black px-4 py-2.5 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_#fff] cursor-pointer shrink-0"
+            >
+              <Compass className="w-4 h-4 stroke-[2.5]" />
+              <span>¿NO SABÉS QUÉ ELEGIR? HACÉ EL TEST</span>
+            </button>
+          </div>
+
+          {/* Brand Logos Grid Section */}
+          <div id="marcas-grid">
+            <BrandGrid
+              brands={brands}
+              products={validProducts}
+              selectedBrand={filters.brand}
+              onSelectBrand={(brandName) => setFilters((prev) => ({ ...prev, brand: brandName }))}
+            />
+          </div>
+
+          {/* Product Filters Bar */}
+          <ProductFilters
+            filters={filters}
+            onFilterChange={(newFilters) => setFilters((prev) => ({ ...prev, ...newFilters }))}
+            onResetFilters={() => {
+              setActiveIntentionId(null);
+              setFilters({
+                search: '',
+                brand: '',
+                type: '',
+                gender: '',
+                inStockOnly: false,
+                tag: '',
+                sortBy: 'featured'
+              });
+            }}
+            products={validProducts}
+            onShowToast={showToast}
+          />
+
+          {/* Catalog Product Grid Header */}
+          <div className="flex items-center justify-between border-b-4 border-black pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-black text-[#E5A93C] font-mono font-black text-xs px-2.5 py-1">
+                RESULTADOS ({filteredProducts.length})
+              </span>
+              <span className="text-sm font-black font-sans uppercase">
+                {filters.search
+                  ? `BÚSQUEDA: "${filters.search}"${filters.brand ? ` (${filters.brand.toUpperCase()})` : ''}`
+                  : filters.brand
+                  ? `MARCA: ${filters.brand.toUpperCase()}`
+                  : 'TODAS LAS FRAGANCIAS'}
+              </span>
+            </div>
+          </div>
+
+          {/* Catalog Grid */}
+          {filteredProducts.length === 0 ? (
+            <div className="bg-white border-4 border-black p-12 text-center my-8 shadow-[6px_6px_0px_0px_#000] space-y-3">
+              <Sparkles className="w-12 h-12 mx-auto text-[#E5A93C]" />
+              <h3 className="text-2xl font-black uppercase font-sans">
+                No se encontraron productos con estos filtros
+              </h3>
+              <p className="text-xs font-mono text-slate-600 max-w-md mx-auto">
+                Probá modificando los términos de búsqueda o limpiando las marcas y filtros seleccionados.
+              </p>
+              <button
+                onClick={() => {
+                  setActiveIntentionId(null);
+                  setFilters({
+                    search: '',
+                    brand: '',
+                    type: '',
+                    gender: '',
+                    inStockOnly: false,
+                    tag: '',
+                    sortBy: 'featured'
+                  });
+                }}
+                className="bg-[#E5A93C] hover:bg-amber-400 border-2 border-black px-6 py-2 font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] cursor-pointer"
+              >
+                Restablecer Filtros
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
+                {filteredProducts.slice(0, visibleCount).map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onSelectProduct={(p) => setSelectedProduct(p)}
+                    onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+                    onImageError={handleImageError}
+                    onShowToast={showToast}
+                  />
+                ))}
+              </div>
+
+              {/* Load More Products Button */}
+              {filteredProducts.length > visibleCount && (
+                <div className="flex flex-col items-center justify-center pt-4 pb-2 space-y-2">
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 36)}
+                    className="bg-[#E5A93C] hover:bg-amber-500 text-black border-4 border-black px-8 py-3 font-black text-sm uppercase shadow-[6px_6px_0px_0px_#000] hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 transition-all cursor-pointer font-sans tracking-wide"
+                  >
+                    ⚡ MOSTRAR MÁS PRODUCTOS (+36)
+                  </button>
+                  <p className="text-xs font-mono font-bold text-slate-500">
+                    Mostrando {Math.min(visibleCount, filteredProducts.length)} de {filteredProducts.length} productos
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Methods Section in Store */}
+          <PaymentMethodsSection paymentMethods={paymentMethods} />
+
+        </main>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW: OFERTAS (EXCLUSIVE PROMOTIONS & OPPORTUNITIES)                      */}
+      {/* ========================================================================= */}
+      {activeView === 'ofertas' && (
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          <OffersSection
+            products={validProducts}
+            onSelectProduct={(p) => setSelectedProduct(p)}
+            onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+            onGoToStoreWithFilter={handleGoToStoreWithSearch}
+          />
+          <PaymentMethodsSection paymentMethods={paymentMethods} />
+        </main>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FOOTER EDITORIAL (MR. PERKINS - CURADOR DE FRAGANCIAS)                    */}
+      {/* ========================================================================= */}
+      <footer className="bg-[#0D0D0D] text-white border-t-4 border-black mt-16 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+          
+          {/* Col 1: Brand presentation */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-black border-2 border-[#E5A93C] p-0.5 flex items-center justify-center">
+                <img
+                  src={BRAND_LOGO_PATH}
+                  alt="Mr. Perkins"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div>
+                <span className="font-sans font-black text-lg text-white block uppercase leading-none">
+                  MR. PERKINS
+                </span>
+                <span className="font-mono text-[10px] text-[#E5A93C] uppercase tracking-widest">
+                  CURADOR DE FRAGANCIAS
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs font-serif italic text-slate-300 leading-relaxed">
+              "No vendemos simplemente botellas. Encontramos la firma olfativa que hablará por usted antes de pronunciar una palabra."
             </p>
-            <div className="text-[11px] font-mono text-yellow-300">
+            
+            <div className="text-[11px] font-mono text-[#E5A93C]">
               © {new Date().getFullYear()} Mr. Perkins Argentina.
             </div>
           </div>
 
+          {/* Col 2: Navigation Links */}
           <div className="space-y-2">
-            <h5 className="font-mono font-black text-xs uppercase text-yellow-300 tracking-wider">
-              INFORMACIÓN DE ENTREGA
+            <h5 className="font-mono font-black text-xs uppercase text-[#E5A93C] tracking-wider">
+              NAVEGACIÓN DIRECTA
             </h5>
-            <ul className="text-xs font-sans space-y-1 text-slate-300">
-              <li>• Envío sin cargo en CABA en compras mayores a $45.000 (*).</li>
-              <li>• Hasta 3 cuotas sin interés con todas las tarjetas.</li>
-              <li>• Despachos a todo el país vía Correo Argentino / Andreani.</li>
+            <ul className="text-xs font-sans space-y-2 text-slate-300">
+              <li>
+                <button
+                  onClick={() => {
+                    setActiveView('home');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="hover:text-white underline cursor-pointer"
+                >
+                  • Inicio & Experiencia Editorial
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={handleStartFragranceTest}
+                  className="hover:text-white underline cursor-pointer text-[#E5A93C]"
+                >
+                  • Encontrá tu Perfume (Test Interactivo)
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => {
+                    setActiveView('tienda');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="hover:text-white underline cursor-pointer"
+                >
+                  • Catálogo Completo (Tienda)
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => {
+                    setActiveView('ofertas');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="hover:text-white underline cursor-pointer"
+                >
+                  • Ofertas & Oportunidades
+                </button>
+              </li>
             </ul>
           </div>
 
+          {/* Col 3: Guarantees & Deliveries */}
           <div className="space-y-2">
-            <h5 className="font-mono font-black text-xs uppercase text-yellow-300 tracking-wider">
-              BASE DE DATOS & HOJA DE CÁLCULO
+            <h5 className="font-mono font-black text-xs uppercase text-[#E5A93C] tracking-wider">
+              GARANTÍAS & BENEFICIOS
+            </h5>
+            <ul className="text-xs font-sans space-y-1.5 text-slate-300">
+              <li>• Fragancias 100% originales con garantía estricta.</li>
+              <li>• Hasta 3 cuotas sin interés con todas las tarjetas.</li>
+              <li>• Despachos a todo el país vía Correo Argentino / Andreani.</li>
+              <li>• Envíos rápidos en CABA y retiro coordinado.</li>
+            </ul>
+          </div>
+
+          {/* Col 4: WhatsApp Contact */}
+          <div className="space-y-2">
+            <h5 className="font-mono font-black text-xs uppercase text-[#E5A93C] tracking-wider">
+              ATENCIÓN PERSONALIZADA
             </h5>
             <p className="text-xs font-sans text-slate-300">
-              Catálogo sincronizado dinámicamente en vivo con Google Sheets.
+              Atención directa y asesoramiento con nuestro sommelier olfativo.
+            </p>
+            <div className="pt-1">
+              <a
+                href={`https://wa.me/${WHATSAPP_PHONE_INTERNATIONAL}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-[#25D366] text-black px-3 py-1.5 text-xs font-mono font-black uppercase border border-black shadow-[2px_2px_0px_0px_#fff]"
+              >
+                <span>WhatsApp: {WHATSAPP_PHONE_DISPLAY}</span>
+              </a>
+            </div>
+            <p className="text-[10px] font-mono text-slate-500">
+              Lunes a Sábados de 9 a 20 hs.
             </p>
           </div>
 
-          <div className="space-y-2">
-            <h5 className="font-mono font-black text-xs uppercase text-yellow-300 tracking-wider">
-              CONTACTO COMERCIAL
-            </h5>
-            <p className="text-xs font-sans text-slate-300">
-              Atención Telefónica y WhatsApp de Lunes a Sábados de 9 a 20 hs.
-            </p>
-            <div className="text-xs font-mono font-bold text-lime-400">
-              WhatsApp: +54 9 11 2345-6789
-            </div>
-          </div>
         </div>
       </footer>
 
@@ -579,6 +920,7 @@ export default function App() {
 
       {/* Floating WhatsApp Button */}
       <FloatingWhatsApp />
+
     </div>
   );
 }

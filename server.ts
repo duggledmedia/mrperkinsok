@@ -288,7 +288,7 @@ async function startServer() {
       );
     }
 
-    const rawImg = product?.imgUrl ? formatImageUrl(product.imgUrl) : 'https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png';
+    const rawImg = product?.imgUrl ? formatImageUrl(product.imgUrl) : `${req.protocol}://${req.get('host')}/MRP%20metad.png`;
     try {
       const imgRes = await fetch(rawImg, {
         headers: {
@@ -333,8 +333,9 @@ async function startServer() {
         rawHtml = fs.readFileSync(distIndexPath, 'utf-8');
       }
 
-      const pTitle = `${product.producto} (${product.marca}) - MR. PERKINS`;
-      const pDesc = `🔥 ¡Mirá ${product.producto} en MR. PERKINS! Marca: ${product.marca} | ${product.cantidad} | Precio: $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
+      const pTitle = `${product.producto} (${product.marca}) - MR. PERKINS Curador de Fragancias`;
+      const cuotaVal = Math.round(product.precioVenta / 3).toLocaleString('es-AR');
+      const pDesc = `🎩 ${product.producto} de ${product.marca} (${product.cantidad}). Precio: $${product.precioVenta.toLocaleString('es-AR')} ARS (Hasta 3 cuotas sin interés de $${cuotaVal}). 100% Original con garantía. Consultá con Mr. Perkins.`;
       
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.get('host');
@@ -347,7 +348,7 @@ async function startServer() {
     <!-- Dynamic Product Social Preview Tags -->
     <title>${escapeHtml(pTitle)}</title>
     <meta property="og:type" content="product" />
-    <meta property="og:site_name" content="MR. PERKINS" />
+    <meta property="og:site_name" content="MR. PERKINS — CURADOR DE FRAGANCIAS" />
     <meta property="og:title" content="${escapeHtml(pTitle)}" />
     <meta property="og:description" content="${escapeHtml(pDesc)}" />
     <meta property="og:image" content="${escapeHtml(proxiedImgUrl)}" />
@@ -389,9 +390,9 @@ async function startServer() {
   app.get('/producto/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
   app.get('/p/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
 
-  // Intercept requests with ?product=ID to inject dynamic Open Graph meta tags
+  // Intercept requests with ?producto=ID, ?product=ID, or ?id=ID to inject dynamic Open Graph meta tags
   app.get('/', async (req, res, next) => {
-    const productId = req.query.product as string;
+    const productId = (req.query.producto || req.query.product || req.query.id) as string;
     if (productId) {
       return serveProductHtml(productId, req, res, next);
     }
@@ -404,7 +405,11 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+      const productId = (req.query.producto || req.query.product || req.query.id) as string;
+      if (productId) {
+        return serveProductHtml(productId, req, res, next);
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

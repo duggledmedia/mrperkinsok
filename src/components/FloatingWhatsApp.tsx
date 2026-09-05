@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, X, Send, PhoneCall, ArrowUp } from 'lucide-react';
+import { MessageCircle, X, Send, ArrowUp } from 'lucide-react';
+import { WHATSAPP_PHONE_INTERNATIONAL } from '../utils/constants';
 
 export const FloatingWhatsApp: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [customPhone, setCustomPhone] = useState('5491123456789');
   const [message, setMessage] = useState(
-    'Hola Mr. Perkins, quisiera hacer una consulta sobre la disponibilidad de perfumes y envíos.'
+    '¡Hola Mr. Perkins! Quisiera consultar por asesoramiento olfativo y disponibilidad de fragancias.'
   );
 
   useEffect(() => {
@@ -31,11 +31,11 @@ export const FloatingWhatsApp: React.FC = () => {
 
   const handleOpenWhatsApp = () => {
     const text = encodeURIComponent(message);
-    window.open(`https://wa.me/${customPhone}?text=${text}`, '_blank');
+    window.open(`https://wa.me/${WHATSAPP_PHONE_INTERNATIONAL}?text=${text}`, '_blank');
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3 max-w-[calc(100vw-2rem)]">
       {/* Scroll To Top Button */}
       {showScrollTop && (
         <button
@@ -50,7 +50,7 @@ export const FloatingWhatsApp: React.FC = () => {
 
       {/* Quick Floating Chat Box */}
       {isOpen && (
-        <div className="mb-1 w-80 bg-white border-4 border-black p-4 shadow-[8px_8px_0px_0px_#000] animate-in slide-in-from-bottom-5 duration-200">
+        <div className="mb-1 w-[calc(100vw-2rem)] max-w-xs sm:w-80 bg-white border-4 border-black p-4 shadow-[8px_8px_0px_0px_#000] animate-in slide-in-from-bottom-5 duration-200">
           <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3 bg-[#25D366] text-black -mx-4 -mt-4 p-3 border-b-4 border-black">
             <div className="flex items-center gap-2 font-black font-sans text-sm uppercase">
               <MessageCircle className="w-5 h-5 fill-black" />
@@ -64,29 +64,14 @@ export const FloatingWhatsApp: React.FC = () => {
             </button>
           </div>
 
-          <p className="text-xs font-sans text-slate-800 mb-2 font-medium">
-            Atención personalizada de Lun a Sáb de 9 a 20 hs. ¡Respondemos al instante!
+          <p className="text-xs font-sans text-slate-800 mb-3 font-medium">
+            Atención personalizada y asesoramiento directo con Mr. Perkins. ¡Escribinos para coordinar!
           </p>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div>
-              <label className="block text-[10px] font-mono font-bold uppercase text-slate-500 mb-0.5">
-                Número de Celular (Editable):
-              </label>
-              <div className="flex items-center border-2 border-black bg-slate-50">
-                <PhoneCall className="w-3.5 h-3.5 ml-2 text-slate-500" />
-                <input
-                  type="text"
-                  value={customPhone}
-                  onChange={(e) => setCustomPhone(e.target.value)}
-                  className="w-full bg-transparent px-2 py-1 text-xs font-mono font-bold text-black focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-mono font-bold uppercase text-slate-500 mb-0.5">
-                Mensaje de Consulta:
+              <label className="block text-[10px] font-mono font-bold uppercase text-slate-600 mb-1">
+                Tu mensaje de consulta:
               </label>
               <textarea
                 value={message}
@@ -98,7 +83,7 @@ export const FloatingWhatsApp: React.FC = () => {
 
             <button
               onClick={handleOpenWhatsApp}
-              className="w-full bg-[#25D366] hover:bg-green-500 text-black border-2 border-black py-2 px-3 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+              className="w-full bg-[#25D366] hover:bg-green-500 text-black border-2 border-black py-2.5 px-3 font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>INICIAR CHAT DIRECTO</span>

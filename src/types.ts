@@ -25,9 +25,14 @@ export interface PaymentMethod {
   activo: 'Si' | 'No' | string;
 }
 
+export type CartItemType = 'bottle' | 'discovery_sample';
+
 export interface CartItem {
+  id?: string;
   product: Product;
   quantity: number;
+  itemType?: CartItemType;
+  unitPrice?: number;
 }
 
 export interface SheetData {

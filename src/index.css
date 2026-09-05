@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+@theme {
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, Cambria, 'Times New Roman', serif;
+  --font-sans: 'Playfair Display', 'Cormorant Garamond', Georgia, Cambria, 'Times New Roman', serif;
+}
+
+/* Editorial Serif Global Typography */
+body {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, Cambria, 'Times New Roman', serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  letter-spacing: -0.015em;
+}
+
+.font-sans {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif !important;
+}
+
+.font-serif {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif !important;
+}
+
 @keyframes marquee {
   0% {
     transform: translateX(0%);
