@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Product, Brand, PaymentMethod, CartItem, FilterState, SheetData } from './types';
+import { Product, Brand, PaymentMethod, CartItem, CartItemType, FilterState, SheetData } from './types';
 import { INITIAL_PRODUCTS, INITIAL_BRANDS, INITIAL_PAYMENT_METHODS } from './data/mockData';
 import { fetchSheetDataClient } from './services/sheetService';
 import { Navbar } from './components/Navbar';
@@ -34,7 +34,10 @@ import {
   WHATSAPP_PHONE_DISPLAY,
   WHATSAPP_PHONE_INTERNATIONAL,
   IntentionOption,
-  trackFunnelEvent
+  trackFunnelEvent,
+  DISCOVERY_SAMPLE_PRICE,
+  DISCOVERY_MIN_SAMPLES,
+  DISCOVERY_MAX_SAMPLES
 } from './utils/constants';
 
 export default function App() {
@@ -347,43 +350,118 @@ export default function App() {
   }, [validProducts, filters]);
 
   // Cart Operations
-  const handleAddToCart = (product: Product, quantity = 1, e?: React.MouseEvent) => {
+  const handleAddToCart = (
+    product: Product,
+    quantity = 1,
+    e?: React.MouseEvent,
+    itemType: CartItemType = 'bottle'
+  ) => {
     if (e) {
       e.stopPropagation();
     }
-    if (product.stock === 'No') return;
+    if (itemType === 'bottle' && product.stock === 'No') return;
+
+    const itemId = `${product.id}-${itemType}`;
+    const unitPrice = itemType === 'discovery_sample' ? DISCOVERY_SAMPLE_PRICE : product.precioVenta;
+
+    let limitReached = false;
 
     setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
+      // Check discovery kit maximum limit (5)
+      if (itemType === 'discovery_sample') {
+        const currentDiscoveryCount = prev
+          .filter((i) => i.itemType === 'discovery_sample')
+          .reduce((sum, i) => sum + i.quantity, 0);
+
+        if (currentDiscoveryCount + quantity > DISCOVERY_MAX_SAMPLES) {
+          limitReached = true;
+          return prev;
+        }
+      }
+
+      const existingIndex = prev.findIndex(
+        (item) => item.id === itemId || (item.product.id === product.id && (item.itemType || 'bottle') === itemType)
+      );
+
+      if (existingIndex > -1) {
+        return prev.map((item, idx) =>
+          idx === existingIndex
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
-      return [...prev, { product, quantity }];
+
+      return [
+        ...prev,
+        {
+          id: itemId,
+          product,
+          quantity,
+          itemType,
+          unitPrice
+        }
+      ];
     });
 
-    showToast(`🛒 ¡${product.producto} agregado al carrito!`);
+    if (itemType === 'discovery_sample') {
+      if (limitReached) {
+        showToast(`⚠️ Máximo ${DISCOVERY_MAX_SAMPLES} muestras en el Kit de Descubrimiento.`);
+      } else {
+        showToast(`🧪 Muestra de "${product.producto}" agregada al Kit ($${DISCOVERY_SAMPLE_PRICE.toLocaleString('es-AR')})`);
+        setIsCartOpen(true);
+      }
+    } else {
+      showToast(`🛒 ¡${product.producto} agregado al carrito!`);
+    }
   };
 
-  const handleUpdateCartQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
+  const handleAddDiscoverySample = (product: Product, e?: React.MouseEvent) => {
+    handleAddToCart(product, 1, e, 'discovery_sample');
+  };
+
+  const handleUpdateCartQuantity = (cartItemId: string, delta: number) => {
+    setCartItems((prev) => {
+      const target = prev.find(
+        (i) => i.id === cartItemId || `${i.product.id}-${i.itemType || 'bottle'}` === cartItemId || i.product.id === cartItemId
+      );
+
+      if (target && target.itemType === 'discovery_sample' && delta > 0) {
+        const currentDiscoveryCount = prev
+          .filter((i) => i.itemType === 'discovery_sample')
+          .reduce((sum, i) => sum + i.quantity, 0);
+
+        if (currentDiscoveryCount >= DISCOVERY_MAX_SAMPLES) {
+          showToast(`⚠️ Máximo ${DISCOVERY_MAX_SAMPLES} muestras permitidas en el Kit de Descubrimiento.`);
+          return prev;
+        }
+      }
+
+      return prev
         .map((item) => {
-          if (item.product.id === productId) {
+          const match =
+            item.id === cartItemId ||
+            `${item.product.id}-${item.itemType || 'bottle'}` === cartItemId ||
+            item.product.id === cartItemId;
+
+          if (match) {
             const newQty = item.quantity + delta;
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
           return item;
         })
-        .filter(Boolean) as CartItem[]
-      );
+        .filter(Boolean) as CartItem[];
+    });
   };
 
-  const handleRemoveCartItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveCartItem = (cartItemId: string) => {
+    setCartItems((prev) =>
+      prev.filter(
+        (item) =>
+          item.id !== cartItemId &&
+          `${item.product.id}-${item.itemType || 'bottle'}` !== cartItemId &&
+          item.product.id !== cartItemId
+      )
+    );
   };
 
   const handleClearCart = () => {
@@ -391,6 +469,11 @@ export default function App() {
   };
 
   const cartTotalCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+  const discoveryCount = useMemo(
+    () => cartItems.filter((i) => i.itemType === 'discovery_sample').reduce((sum, i) => sum + i.quantity, 0),
+    [cartItems]
+  );
 
   // Navigation handlers
   const handleStartFragranceTest = () => {
@@ -571,7 +654,13 @@ export default function App() {
           </div>
 
           {/* 6. Kit de Descubrimiento (Probá antes de elegir) */}
-          <DiscoveryKitSection />
+          <DiscoveryKitSection
+            onGoToStore={() => {
+              setActiveView('tienda');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            currentDiscoveryCount={discoveryCount}
+          />
 
           {/* 7. Ofertas & Oportunidades Activas */}
           <OffersSection
@@ -731,6 +820,7 @@ export default function App() {
                     product={product}
                     onSelectProduct={(p) => setSelectedProduct(p)}
                     onAddToCart={(p, e) => handleAddToCart(p, 1, e)}
+                    onAddDiscoverySample={handleAddDiscoverySample}
                     onImageError={handleImageError}
                     onShowToast={showToast}
                   />
@@ -904,6 +994,7 @@ export default function App() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={(p, qty) => handleAddToCart(p, qty)}
+        onAddDiscoverySample={(p) => handleAddDiscoverySample(p)}
         onImageError={handleImageError}
         onShowToast={showToast}
       />

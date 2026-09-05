@@ -130,11 +130,12 @@ export async function shareSearchLink(query: string, brand?: string): Promise<{ 
 export function updateOpenGraphMeta(product: Product | null) {
   if (typeof document === 'undefined') return;
 
-  const defaultTitle = 'Mr. Perkins | Perfumes & Desodorantes';
-  const defaultDesc = 'Las Mejores Fragancias.. Al mejor Precio. Perfumería importada y desodorantes de máxima concentración con envíos a todo el país.';
-  const defaultImage = 'https://nzvatrocepzupcustphd.supabase.co/storage/v1/object/public/PERFUMES/Logis/logoix.png';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const defaultTitle = 'Mr . Perkins — Sommelier de Fragancias';
+  const defaultDesc = 'Hay miles de perfumes. Encontremos el tuyo. Mr . Perkins, sommelier de fragancias y kits de descubrimiento con envíos a todo el país.';
+  const defaultImage = `${origin}/MRP-metad.png`;
 
-  document.title = product ? `${product.producto} - MR. PERKINS` : defaultTitle;
+  document.title = product ? `${product.producto} - Mr . Perkins` : defaultTitle;
 
   const setMeta = (attrName: 'property' | 'name', attrVal: string, content: string) => {
     let tag = document.querySelector(`meta[${attrName}="${attrVal}"]`) as HTMLMetaElement;
@@ -147,7 +148,7 @@ export function updateOpenGraphMeta(product: Product | null) {
   };
 
   if (product) {
-    const title = `${product.producto} - MR. PERKINS`;
+    const title = `${product.producto} - Mr . Perkins`;
     const desc = `${product.marca} (${product.cantidad}) - $${product.precioVenta.toLocaleString('es-AR')} ARS. ${product.descripcion || ''}`;
     const img = product.imgUrl;
     const url = getProductPageUrl(product.id);

@@ -288,7 +288,9 @@ async function startServer() {
       );
     }
 
-    const rawImg = product?.imgUrl ? formatImageUrl(product.imgUrl) : `${req.protocol}://${req.get('host')}/MRP%20metad.png`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const rawImg = product?.imgUrl ? formatImageUrl(product.imgUrl) : `${protocol}://${host}/MRP-metad.png`;
     try {
       const imgRes = await fetch(rawImg, {
         headers: {
@@ -387,6 +389,57 @@ async function startServer() {
     }
   };
 
+  // Handler for default site pages (Home, Catalog, Deals) ensuring WhatsApp/FB get absolute MRP-metad.png
+  const serveDefaultHtml = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      let rawHtml = '';
+      if (process.env.NODE_ENV !== 'production') {
+        const indexPath = path.join(process.cwd(), 'index.html');
+        rawHtml = fs.readFileSync(indexPath, 'utf-8');
+      } else {
+        const distIndexPath = path.join(process.cwd(), 'dist', 'index.html');
+        rawHtml = fs.readFileSync(distIndexPath, 'utf-8');
+      }
+
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const absoluteMetadUrl = `${protocol}://${host}/MRP-metad.png`;
+      const currentUrl = `${protocol}://${host}${req.originalUrl || '/'}`;
+
+      let html = rawHtml
+        .replace(
+          /<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/gi,
+          `<meta property="og:image" content="${absoluteMetadUrl}" />`
+        )
+        .replace(
+          /<meta\s+property="og:image:secure_url"\s+content="[^"]*"\s*\/?>/gi,
+          `<meta property="og:image:secure_url" content="${absoluteMetadUrl}" />`
+        )
+        .replace(
+          /<meta\s+name="twitter:image"\s+content="[^"]*"\s*\/?>/gi,
+          `<meta name="twitter:image" content="${absoluteMetadUrl}" />`
+        )
+        .replace(
+          /<link\s+rel="image_src"\s+href="[^"]*"\s*\/?>/gi,
+          `<link rel="image_src" href="${absoluteMetadUrl}" />`
+        );
+
+      if (!html.includes('property="og:url"')) {
+        html = html.replace('</head>', `    <meta property="og:url" content="${currentUrl}" />\n  </head>`);
+      }
+
+      if (process.env.NODE_ENV !== 'production' && viteDevServer) {
+        html = await viteDevServer.transformIndexHtml(req.originalUrl, html);
+      }
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(html);
+    } catch (err) {
+      console.error('Error serving default OpenGraph meta HTML:', err);
+      return next();
+    }
+  };
+
   app.get('/producto/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
   app.get('/p/:id', (req, res, next) => serveProductHtml(req.params.id, req, res, next));
 
@@ -396,7 +449,12 @@ async function startServer() {
     if (productId) {
       return serveProductHtml(productId, req, res, next);
     }
-    return next();
+    return serveDefaultHtml(req, res, next);
+  });
+
+  // Dedicated endpoint for scrapers checking any subpage
+  app.get(['/tienda', '/ofertas'], (req, res, next) => {
+    return serveDefaultHtml(req, res, next);
   });
 
   // Vite middleware for development vs production
@@ -410,7 +468,7 @@ async function startServer() {
       if (productId) {
         return serveProductHtml(productId, req, res, next);
       }
-      res.sendFile(path.join(distPath, 'index.html'));
+      return serveDefaultHtml(req, res, next);
     });
   }
 
